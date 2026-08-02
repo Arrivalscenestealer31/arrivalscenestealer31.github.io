@@ -1170,7 +1170,9 @@ function signalLost(){
   const rg=rpGain();
   $("#lostBody").innerHTML=
     "<p>The dread meter is full. Every monitor in the building is showing the same room, and it is <b>this</b> one.</p>"+
-    "<p>NIGHT "+S.night+" &nbsp;·&nbsp; AIRTIME "+mmss(S.airtime)+" &nbsp;·&nbsp; BANISHED "+S.stats.banished+
+    "<p>The clock stopped at <b>"+shiftClock()+"</b> during "+segOf().nm+
+    ". You needed to reach 06:00.</p>"+
+    "<p>NIGHT "+S.night+" &nbsp;·&nbsp; BANISHED "+S.stats.banished+
     " &nbsp;·&nbsp; BEST STREAK "+S.stats.bestStreak+"</p>"+
     "<p>An <b>emergency sponsor</b> will buy the rest of the hour — watch the spot and the dread resets to a survivable level, "+
     "everything you own stays yours. This will be revive <b>#"+(S.revives+1)+"</b> tonight.</p>"+
