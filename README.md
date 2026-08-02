@@ -14,13 +14,26 @@ synthesised WebAudio.
 
 ---
 
+## The shift
+
+The clock starts at **23:00 and you are trying to reach 06:00.** Nobody has ended a shift
+since 1987.
+
+The night is seven named segments — STATION IDENT, THE LATE MOVIE, OVERNIGHT NEWS, THE
+DEAD HOUR, TEST TRANSMISSION, THE CHOIR HOUR, SIGN-OFF PREP — and each one has a viewer
+quota. The clock runs freely to :59 and then **holds** until you make quota. Fall behind
+and time stops, dread creeps, and the anomalies start arriving almost twice as fast.
+Banishing is the quickest way to make quota, which is what ties the two halves together.
+
+Reach 06:00 and the test card comes up on its own.
+
 ## The loop
 
-**The idle half.** Transmitters generate SIGNAL passively. Reach converts into
-SUBSCRIBERS, and subscribers multiply signal output — the two currencies compound into
-each other. Signal buys more transmitters (ten tiers, from a bent coat hanger to
-something that is not a transmitter at all) and one-time station equipment. Sign off at
-the end of a night to convert lifetime subscribers into permanent RATINGS POINTS.
+**The idle half.** Nothing is automatic at first — the carrier will not hold itself, so
+you **strike the set** to keep signal going out. That buys transmitters, transmitters
+generate SIGNAL passively, reach converts into SUBSCRIBERS, and subscribers multiply
+signal output. Ten tiers, from a bent coat hanger to something that is not a transmitter
+at all, plus one-time station equipment. Surviving to dawn banks permanent RATINGS POINTS.
 
 **The panic half.** Every eleven to twenty-seven seconds, something manifests on the main
 tube. It telegraphs first — the security cameras catch a silhouette a beat before it
@@ -64,11 +77,17 @@ Nothing external is ever loaded or contacted. The commercials are part of the fi
 
 | | |
 |---|---|
+| click the tube | strike the set — holds the carrier, makes signal |
 | `1` – `8` | the eight emergency-broadcast keys |
 | `M` | operator's field manual |
 | `Esc` | close |
 
 The keys are also buttons — it plays fine with a mouse or by touch.
+
+**Wear headphones.** The room has a floor: an air handler two storeys down, three
+resonant modes of an empty concrete studio, wind past the mast, pipes, joists, doors you
+did not open, and voices you will not quite catch. A heartbeat comes up under the banish
+timer and accelerates to 172 bpm as it drains. Miss one and something screams.
 
 ## Running it
 

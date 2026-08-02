@@ -196,6 +196,7 @@ canvas#scene{position:absolute;inset:0;width:1280px;height:720px;display:block}
 #lostSheet h2{color:var(--red);border-bottom-color:#3a1010;background:#0d0303}
 #lostBody{padding:22px 26px;font-size:12px;line-height:1.8;color:#c0a3a3}
 #lostBody b{color:#ff8b82}
+#lostSheet.win #lostBody b{color:var(--green)}
 #lostBtns{display:flex;gap:10px;padding:0 26px 22px}
 #lostBtns button{flex:1;padding:14px;font-family:inherit;font-size:11px;letter-spacing:2px;cursor:pointer}
 #reviveBtn{background:#1a1206;border:1px solid #6a4413;color:var(--amber)}
@@ -238,7 +239,9 @@ canvas#scene{position:absolute;inset:0;width:1280px;height:720px;display:block}
       <div class="rdo"><div class="lbl">SIGNAL</div><div class="val" id="rSig">0</div><div class="sub" id="rSigRate">+0 /s</div></div>
       <div class="rdo cyanv"><div class="lbl">SUBSCRIBERS</div><div class="val" id="rSub">0</div><div class="sub" id="rSubRate">+0 /s</div></div>
       <div class="rdo amberv"><div class="lbl">RATINGS PTS</div><div class="val" id="rRp">0</div><div class="sub" id="rMult">x1.00</div></div>
-      <div class="rdo"><div class="lbl">AIRTIME</div><div class="val" id="rClock">00:00</div><div class="sub" id="rNight">NIGHT 1</div></div>
+      <div class="rdo" style="min-width:150px"><div class="lbl">SHIFT ENDS 06:00</div><div class="val" id="rClock">23:00</div><div class="sub" id="rNight">STATION IDENT</div></div>
+      <div class="rdo" style="min-width:132px"><div class="lbl">VIEWERS THIS SEGMENT</div><div class="val" id="rQuota" style="font-size:15px">0 / 8</div>
+        <div id="qBar" style="height:5px;background:#0e1a16;border:1px solid #1d3a2c;margin-top:3px;position:relative;overflow:hidden"><div id="qFill" style="position:absolute;inset:0;width:0%;background:linear-gradient(90deg,#1f6b39,#6dff9a)"></div></div></div>
       <div id="dreadWrap"><div class="lbl">DREAD</div>
         <div id="dreadBar"><div id="dreadFill"></div><div class="ticks"></div></div></div>
       <div id="onair">OFF AIR</div>
@@ -339,24 +342,35 @@ const AU={
     if(this.ctx)return;
     const C=window.AudioContext||window.webkitAudioContext; if(!C)return;
     const c=this.ctx=new C();
-    this.master=c.createGain(); this.master.gain.value=this.vol; this.master.connect(c.destination);
+    this.master=c.createGain(); this.master.gain.value=this.vol;
+    // safety limiter: bed + heartbeat + jumpscare can all be live at once
+    this.limiter=c.createDynamicsCompressor();
+    this.limiter.threshold.setValueAtTime(-7,c.currentTime);
+    this.limiter.knee.setValueAtTime(5,c.currentTime);
+    this.limiter.ratio.setValueAtTime(14,c.currentTime);
+    this.limiter.attack.setValueAtTime(0.004,c.currentTime);
+    this.limiter.release.setValueAtTime(0.22,c.currentTime);
+    this.master.connect(this.limiter); this.limiter.connect(c.destination);
 
-    // looping noise bed
+    // looping noise bed. The one-pole coefficient sets where this noise lives: at 0.02
+    // its corner is ~138Hz, i.e. BELOW the 220Hz highpass right after it, so 72% of the
+    // energy was manufactured and then immediately deleted. 0.05 puts it at ~342Hz.
     const len=c.sampleRate*2, buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
     let last=0;
-    for(let i=0;i<len;i++){const w=Math.random()*2-1; last=(last+0.02*w)/1.02; d[i]=last*3.2;}
+    for(let i=0;i<len;i++){const w=Math.random()*2-1; last=(last+0.05*w)/1.05; d[i]=last*2.2;}
     const src=c.createBufferSource(); src.buffer=buf; src.loop=true;
     const lp=c.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=5200;
     const hp=c.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=220;
-    this.staticG=c.createGain(); this.staticG.gain.value=0.03;
+    this.staticG=c.createGain(); this.staticG.gain.value=0.20;
     src.connect(hp); hp.connect(lp); lp.connect(this.staticG); this.staticG.connect(this.master);
     src.start(); this.noiseSrc=src;
 
-    // mains hum 60/120
-    this.humG=c.createGain(); this.humG.gain.value=0.028; this.humG.connect(this.master);
-    [60,120,180].forEach((f,i)=>{const o=c.createOscillator();o.type="sawtooth";o.frequency.value=f;
-      const g=c.createGain(); g.gain.value=[0.5,0.28,0.1][i];
-      const flt=c.createBiquadFilter(); flt.type="lowpass"; flt.frequency.value=400;
+    // mains hum. Lowpassed at 400 every partial sat at or under where laptop drivers
+    // give up; 820 plus a 300Hz partial makes it a buzz you hear, not one you infer.
+    this.humG=c.createGain(); this.humG.gain.value=0.10; this.humG.connect(this.master);
+    [60,120,180,300].forEach((f,i)=>{const o=c.createOscillator();o.type="sawtooth";o.frequency.value=f;
+      const g=c.createGain(); g.gain.value=[0.5,0.28,0.12,0.05][i];
+      const flt=c.createBiquadFilter(); flt.type="lowpass"; flt.frequency.value=820;
       o.connect(g);g.connect(flt);flt.connect(this.humG);o.start();});
 
     // anomaly drone (silent until needed)
@@ -366,7 +380,353 @@ const AU={
     const f=c.createBiquadFilter(); f.type="lowpass"; f.frequency.value=260;
     o.connect(f);o2.connect(f);f.connect(this.droneG);o.start();o2.start();
     this.droneOsc=o;
+    this.buildBed();
     this.on=true;
+  },
+
+  /* ---- shared primitives ---- */
+  shaper(amt){ // odd-harmonic saturation: a 41Hz drone is inaudible on a laptop, its
+    const c=this.ctx,n=256,cv=new Float32Array(n);   // 3rd and 5th are not
+    for(let i=0;i<n;i++){ const x=i*2/(n-1)-1; cv[i]=Math.tanh(x*amt)/Math.tanh(amt); }
+    const w=c.createWaveShaper(); w.curve=cv; w.oversample="2x"; return w;
+  },
+  noise(t,dur){ // one shared 3s buffer at a random offset — burst() allocates a fresh
+    const c=this.ctx,n=c.createBufferSource();       // buffer per call, which is fine at
+    n.buffer=this.nbuf; n.loop=true;                 // 1/s and not fine at the 3/s a
+    n.start(t,Math.random()*2.4); n.stop(t+dur);     // 170bpm heart asks for
+    return n;
+  },
+
+  /* ---- the room: always on, and it gets worse as DREAD climbs ---- */
+  buildBed(){
+    const c=this.ctx,t=c.currentTime;
+    const ln=(c.sampleRate*3)|0, nb=c.createBuffer(1,ln,c.sampleRate), nd=nb.getChannelData(0);
+    for(let i=0;i<ln;i++)nd[i]=Math.random()*2-1;
+    this.nbuf=nb;
+
+    this.roomG=c.createGain(); this.roomG.gain.value=0.9; this.roomG.connect(this.master);
+
+    // air handler two floors down, breathing on an 18s cycle
+    const rn=c.createBufferSource(); rn.buffer=nb; rn.loop=true; rn.start(t);
+    const rlp=c.createBiquadFilter(); rlp.type="lowpass"; rlp.frequency.value=150; rlp.Q.value=0.9;
+    const rg=c.createGain(); rg.gain.value=0.42;
+    rn.connect(rlp); rlp.connect(rg); rg.connect(this.roomG);
+    const rl=c.createOscillator(); rl.type="sine"; rl.frequency.value=0.055;
+    const rlg=c.createGain(); rlg.gain.value=52;
+    rl.connect(rlg); rlg.connect(rlp.frequency); rl.start(t);
+
+    // three room modes — an empty concrete studio ringing at its own dimensions. This
+    // 180-450Hz band is the lowest a laptop speaker renders, so this is the layer that
+    // actually makes it sound like a room.
+    [[186,13,0.26,0.019],[281,17,0.17,0.032],[433,21,0.09,0.045]].forEach(m=>{
+      const n2=c.createBufferSource(); n2.buffer=nb; n2.loop=true; n2.start(t,Math.random()*2.4);
+      const bp=c.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=m[0]; bp.Q.value=m[1];
+      const g2=c.createGain(); g2.gain.value=m[2];
+      const lf=c.createOscillator(); lf.type="sine"; lf.frequency.value=m[3];
+      const lg=c.createGain(); lg.gain.value=m[2]*0.6;
+      lf.connect(lg); lg.connect(g2.gain); lf.start(t);
+      n2.connect(bp); bp.connect(g2); g2.connect(this.roomG);
+    });
+
+    // wind past the mast, swelling about every 38s
+    const wn=c.createBufferSource(); wn.buffer=nb; wn.loop=true; wn.start(t,1.1);
+    const wbp=c.createBiquadFilter(); wbp.type="bandpass"; wbp.frequency.value=820; wbp.Q.value=0.7;
+    const wg=c.createGain(); wg.gain.value=0.05;
+    const wl=c.createOscillator(); wl.type="sine"; wl.frequency.value=0.026;
+    const wlg=c.createGain(); wlg.gain.value=0.042;
+    wl.connect(wlg); wlg.connect(wg.gain); wl.start(t);
+    wn.connect(wbp); wbp.connect(wg); wg.connect(this.roomG);
+
+    // dread bed: silent at 0, a physical presence at 100
+    this.dreadG=c.createGain(); this.dreadG.gain.value=0; this.dreadG.connect(this.master);
+    this.dreadTrem=c.createGain(); this.dreadTrem.gain.value=1;
+    this.dreadTrem.connect(this.dreadG);
+    this.dreadF=c.createBiquadFilter(); this.dreadF.type="lowpass";
+    this.dreadF.frequency.value=95; this.dreadF.Q.value=7;
+    const dsh=this.shaper(2.8);
+    this.dreadF.connect(dsh); dsh.connect(this.dreadTrem);
+    const dmix=c.createGain(); dmix.gain.value=0.5; dmix.connect(this.dreadF);
+    const d1=c.createOscillator(); d1.type="sawtooth"; d1.frequency.value=41;
+    const d2=c.createOscillator(); d2.type="sawtooth"; d2.frequency.value=41; d2.detune.value=-6;
+    const d3=c.createOscillator(); d3.type="triangle"; d3.frequency.value=58;
+    const d3g=c.createGain(); d3g.gain.value=0.45;
+    d1.connect(dmix); d2.connect(dmix); d3.connect(d3g); d3g.connect(dmix);
+    d1.start(t); d2.start(t); d3.start(t);
+    this.dreadOsc2=d2;
+    this.dreadLfo=c.createOscillator(); this.dreadLfo.type="sine"; this.dreadLfo.frequency.value=0.12;
+    this.dreadLfoG=c.createGain(); this.dreadLfoG.gain.value=0.12;
+    this.dreadLfo.connect(this.dreadLfoG); this.dreadLfoG.connect(this.dreadTrem.gain);
+    this.dreadLfo.start(t);
+
+    this.heartG=c.createGain(); this.heartG.gain.value=1; this.heartG.connect(this.master);
+  },
+
+  /* One writer per bed parameter: tick() is the ONLY thing that touches roomG/dreadG
+     gains. Everything else moves a target in this.tn — because ramp() calls
+     cancelScheduledValues(), a second writer silently eats the first one's automation. */
+  tn:{ dread:0, dreadT:0, duck:1, duckT:1, dead:false, dt:0, pa:0,
+       hbBpm:50, hbBpmT:50, hbVol:0, hbVolT:0, hbPh:0.88, ev:7 },
+
+  tick(dt){
+    if(!this.on||!this.roomG)return;
+    const c=this.ctx,t=c.currentTime,T=this.tn;
+    if(dt>0.25)dt=0.25;
+    T.duck  += (T.duckT-T.duck)*Math.min(1,dt*7);
+    T.dread += (T.dreadT-T.dread)*Math.min(1,dt*0.5);   // mood lags the meter
+    const d=T.dread, k=T.duck;
+
+    T.pa+=dt;
+    if(T.pa>=0.1){   // 10Hz — at 60fps this was 360 AudioParam events a second
+      T.pa=0;
+      this.roomG.gain.setTargetAtTime((0.85+d*0.55)*k, t, 0.12);
+      this.dreadG.gain.setTargetAtTime((0.015+d*0.20)*k, t, 0.25);
+      this.dreadF.frequency.setTargetAtTime(95+d*d*820, t, 0.3);
+      this.dreadOsc2.detune.setTargetAtTime(-6-d*30, t, 0.4);
+      this.dreadLfo.frequency.setTargetAtTime(0.12+d*1.1, t, 0.4);
+      this.dreadLfoG.gain.setTargetAtTime(0.12+d*0.55, t, 0.4);
+    }
+
+    T.hbBpm += (T.hbBpmT-T.hbBpm)*Math.min(1,dt*2.2);
+    T.hbVol += (T.hbVolT-T.hbVol)*Math.min(1,dt*(T.hbVolT>T.hbVol?3.0:1.1));
+    if(T.hbVol>0.006){
+      T.hbPh += dt*(T.hbBpm/60);
+      if(T.hbPh>=1){
+        T.hbPh-=1;
+        // Dead Air ducks the room to 0.05 and leaves the heart: that silence is meant
+        // to be you, by yourself, listening to your own chest
+        const per=60/Math.max(30,T.hbBpm), v=T.hbVol*(T.dead?1:k);
+        this.thump(v,      58, t+0.02);
+        this.thump(v*0.62, 47, t+0.02+per*0.27);
+      }
+    }else{ T.hbPh=0.9; }
+
+    T.ev-=dt;
+    if(T.ev<=0){
+      T.ev=rr(13-d*7, 26-d*14);
+      const r=Math.random();
+      if(r<0.30+d*0.28) this.whisper();
+      else if(r<0.62)   this.creak();
+      else if(r<0.84)   this.pipe();
+      else              this.farThud();
+    }
+  },
+  setDread(v){ this.tn.dreadT=Math.max(0,Math.min(1,v)); },
+  setHeart(bpm,vol){ this.tn.hbBpmT=bpm; this.tn.hbVolT=Math.max(0,Math.min(0.55,vol)); },
+  duck(v,ms){ const T=this.tn; T.duckT=v;
+    clearTimeout(T.dt); T.dt=setTimeout(()=>{ T.duckT=T.dead?0.05:1; },ms); },
+  deadAir(on){ const T=this.tn; T.dead=on; clearTimeout(T.dt); T.duckT=on?0.05:1; },
+
+  thump(vol,f0,when){
+    if(!this.on)return; const c=this.ctx,t=when||c.currentTime;
+    const out=c.createGain(); out.gain.value=1; out.connect(this.heartG);
+    const o=c.createOscillator(); o.type="sine";
+    o.frequency.setValueAtTime(f0,t);
+    o.frequency.exponentialRampToValueAtTime(f0*0.55,t+0.10);
+    const g=c.createGain(); g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol*0.62,t+0.014);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.20);
+    const sh=this.shaper(2.2);
+    o.connect(g); g.connect(sh); sh.connect(out); o.start(t); o.stop(t+0.24);
+    const n=this.noise(t,0.09);
+    const nf=c.createBiquadFilter(); nf.type="bandpass"; nf.frequency.value=235; nf.Q.value=1.8;
+    const ng=c.createGain(); ng.gain.setValueAtTime(vol*2.4,t);
+    ng.gain.exponentialRampToValueAtTime(0.0001,t+0.085);
+    n.connect(nf); nf.connect(ng); ng.connect(out);
+    // 58Hz and 235Hz are at or under what a laptop renders — it is this click, not the
+    // thud, that actually reaches the player
+    const k=this.noise(t,0.055);
+    const kf=c.createBiquadFilter(); kf.type="bandpass"; kf.frequency.value=560; kf.Q.value=1.5;
+    const kg=c.createGain(); kg.gain.setValueAtTime(vol*8.5,t);
+    kg.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+    k.connect(kf); kf.connect(kg); kg.connect(out);
+    o.onended=()=>{ try{out.disconnect();}catch(e){} };
+  },
+
+  riser(dur){
+    if(!this.on)return; const c=this.ctx,t=c.currentTime,d=dur||1.6;
+    const out=c.createGain(); out.gain.value=1; out.connect(this.master);
+    const pl=c.createOscillator(); pl.type="sine";
+    pl.frequency.setValueAtTime(3.5,t); pl.frequency.exponentialRampToValueAtTime(14,t+d);
+    const plg=c.createGain(); plg.gain.value=0.32;
+    pl.connect(plg); plg.connect(out.gain); pl.start(t); pl.stop(t+d+0.3);
+    const n=this.noise(t,d+0.2);
+    const bp=c.createBiquadFilter(); bp.type="bandpass";
+    bp.frequency.setValueAtTime(170,t); bp.frequency.exponentialRampToValueAtTime(3600,t+d);
+    bp.Q.setValueAtTime(0.9,t); bp.Q.linearRampToValueAtTime(6.5,t+d);
+    const ng=c.createGain(); ng.gain.setValueAtTime(0.0001,t);
+    ng.gain.exponentialRampToValueAtTime(0.5,t+d*0.87);
+    ng.gain.exponentialRampToValueAtTime(0.03,t+d);
+    n.connect(bp); bp.connect(ng); ng.connect(out);
+    const lp=c.createBiquadFilter(); lp.type="lowpass"; lp.Q.value=5;
+    lp.frequency.setValueAtTime(200,t); lp.frequency.exponentialRampToValueAtTime(2400,t+d);
+    const og=c.createGain(); og.gain.setValueAtTime(0.0001,t);
+    og.gain.exponentialRampToValueAtTime(0.16,t+d*0.9);
+    og.gain.exponentialRampToValueAtTime(0.008,t+d);
+    [[58,0],[58,9],[87,-7]].forEach(v=>{
+      const o=c.createOscillator(); o.type="sawtooth"; o.detune.value=v[1];
+      o.frequency.setValueAtTime(v[0],t);
+      o.frequency.exponentialRampToValueAtTime(v[0]*3,t+d);
+      o.connect(lp); o.start(t); o.stop(t+d+0.05);
+    });
+    lp.connect(og); og.connect(out);
+    n.onended=()=>{ try{out.disconnect();}catch(e){} };
+    this.duck(0.6,d*1000);
+  },
+
+  impact(){
+    if(!this.on)return; const c=this.ctx,t=c.currentTime;
+    const out=c.createGain(); out.gain.value=1; out.connect(this.master);
+    const o=c.createOscillator(); o.type="sine";
+    o.frequency.setValueAtTime(120,t); o.frequency.exponentialRampToValueAtTime(27,t+0.75);
+    const g=c.createGain(); g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.5,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.9);
+    const sh=this.shaper(1.6);
+    o.connect(sh); sh.connect(g); g.connect(out); o.start(t); o.stop(t+0.95);
+    const n=this.noise(t,0.45);
+    const f=c.createBiquadFilter(); f.type="lowpass";
+    f.frequency.setValueAtTime(2600,t); f.frequency.exponentialRampToValueAtTime(160,t+0.4);
+    const ng=c.createGain(); ng.gain.setValueAtTime(0.8,t);
+    ng.gain.exponentialRampToValueAtTime(0.0001,t+0.5);
+    n.connect(f); f.connect(ng); ng.connect(out);
+    const mb=c.createBiquadFilter(); mb.type="bandpass"; mb.frequency.value=760; mb.Q.value=1.1;
+    const mg=c.createGain(); mg.gain.setValueAtTime(1.6,t);
+    mg.gain.exponentialRampToValueAtTime(0.0001,t+0.3);
+    n.connect(mb); mb.connect(mg); mg.connect(out);
+    o.onended=()=>{ try{out.disconnect();}catch(e){} };
+    this.duck(0.35,260);
+  },
+
+  banishStinger(fast){
+    if(!this.on)return; const c=this.ctx,t=c.currentTime;
+    const out=c.createGain(); out.gain.value=1; out.connect(this.master);
+    this.duck(0.15,fast?320:240);   // pull the room out and bring it back: the relief
+    const sub=c.createOscillator(); sub.type="sine";
+    sub.frequency.setValueAtTime(160,t); sub.frequency.exponentialRampToValueAtTime(40,t+0.5);
+    const sg=c.createGain(); sg.gain.setValueAtTime(0.0001,t);
+    sg.gain.exponentialRampToValueAtTime(0.30,t+0.02);
+    sg.gain.exponentialRampToValueAtTime(0.0001,t+0.55);
+    const ssh=this.shaper(1.8);
+    sub.connect(ssh); ssh.connect(sg); sg.connect(out); sub.start(t); sub.stop(t+0.6);
+    // swept DOWN — every other cue in the game sweeps up, so this reads as resolved
+    const n=this.noise(t,0.36);
+    const nf=c.createBiquadFilter(); nf.type="bandpass"; nf.Q.value=1.6;
+    nf.frequency.setValueAtTime(5200,t); nf.frequency.exponentialRampToValueAtTime(420,t+0.3);
+    const ng=c.createGain(); ng.gain.setValueAtTime(0.34,t);
+    ng.gain.exponentialRampToValueAtTime(0.0001,t+0.32);
+    n.connect(nf); nf.connect(ng); ng.connect(out);
+    const notes=fast?[784,1176,1568,2352]:[588,882,1176];
+    notes.forEach((f,i)=>{
+      const a=t+i*0.055, dur=fast?0.95:0.7;
+      const o=c.createOscillator(); o.type="triangle"; o.frequency.value=f;
+      const o2=c.createOscillator(); o2.type="sine"; o2.frequency.value=f*2.01;
+      const g2=c.createGain(); g2.gain.setValueAtTime(0.0001,a);
+      g2.gain.exponentialRampToValueAtTime((fast?0.20:0.17)/(1+i*0.45),a+0.012);
+      g2.gain.exponentialRampToValueAtTime(0.0001,a+dur);
+      const hp=c.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=300;
+      o.connect(g2); o2.connect(g2); g2.connect(hp); hp.connect(out);
+      o.start(a); o.stop(a+dur+0.05); o2.start(a); o2.stop(a+dur+0.05);
+    });
+    n.onended=()=>{ setTimeout(()=>{ try{out.disconnect();}catch(e){} },1400); };
+  },
+
+  reject(){
+    if(!this.on)return; const c=this.ctx,t=c.currentTime,d=0.26;
+    const out=c.createGain(); out.gain.value=1; out.connect(this.master);
+    const gate=c.createGain(); gate.gain.value=0.78; gate.connect(out);
+    const gl=c.createOscillator(); gl.type="square"; gl.frequency.value=27;
+    const glg=c.createGain(); glg.gain.value=0.22;
+    gl.connect(glg); glg.connect(gate.gain); gl.start(t); gl.stop(t+d+0.1);
+    const sh=this.shaper(9);
+    const eg=c.createGain(); eg.gain.setValueAtTime(0.0001,t);
+    eg.gain.exponentialRampToValueAtTime(1.15,t+0.006);
+    eg.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    sh.connect(eg); eg.connect(gate);
+    [[92,0],[97.5,7]].forEach(v=>{   // a semitone apart in the bass, hard-clipped
+      const o=c.createOscillator(); o.type="sawtooth";
+      o.frequency.setValueAtTime(v[0],t);
+      o.frequency.exponentialRampToValueAtTime(v[0]*0.72,t+d);
+      o.detune.value=v[1]; o.connect(sh); o.start(t); o.stop(t+d+0.05);
+    });
+    const n=this.noise(t,0.14);
+    const bp=c.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=1750; bp.Q.value=3.2;
+    const ng=c.createGain(); ng.gain.setValueAtTime(1.0,t);
+    ng.gain.exponentialRampToValueAtTime(0.0001,t+0.13);
+    n.connect(bp); bp.connect(ng); ng.connect(out);
+    n.onended=()=>{ setTimeout(()=>{ try{out.disconnect();}catch(e){} },400); };
+    this.duck(1.25,180);
+  },
+
+  whisper(){ // three sliding formants over shared noise — the vowel space of whispered
+    if(!this.on)return;                    // speech. The syllable envelope is what makes
+    const c=this.ctx,t=c.currentTime,d=rr(0.6,1.15);   // it read as language, not wind.
+    const out=c.createGain(); out.gain.value=1; out.connect(this.roomG);
+    const n=this.noise(t,d+0.15);
+    const hp=c.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=420;
+    const g=c.createGain(); g.gain.setValueAtTime(0.0001,t);
+    const syl=2+((Math.random()*3)|0), sd=d/syl;
+    for(let i=0;i<syl;i++){ const a=t+sd*i;
+      g.gain.exponentialRampToValueAtTime(rr(1.4,2.6),a+sd*0.35);
+      g.gain.exponentialRampToValueAtTime(0.05,a+sd*0.93); }
+    g.gain.exponentialRampToValueAtTime(0.0001,t+d+0.1);
+    n.connect(hp); hp.connect(g);
+    [[rr(320,720),rr(320,720),8,0.5],[rr(950,1900),rr(950,1900),7,0.34],
+     [rr(2300,3100),rr(2300,3100),5,0.13]].forEach(v=>{
+      const bp=c.createBiquadFilter(); bp.type="bandpass"; bp.Q.value=v[2];
+      bp.frequency.setValueAtTime(v[0],t);
+      bp.frequency.linearRampToValueAtTime(v[1],t+d);
+      const fg=c.createGain(); fg.gain.value=v[3]*0.85;
+      g.connect(bp); bp.connect(fg); fg.connect(out);
+    });
+    n.onended=()=>{ try{out.disconnect();}catch(e){} };
+  },
+  creak(){ // a joist above the studio ceiling
+    if(!this.on)return; const c=this.ctx,t=c.currentTime,d=rr(0.5,1.1);
+    const out=c.createGain(); out.gain.value=1; out.connect(this.roomG);
+    const n=this.noise(t,d+0.1);
+    const bp=c.createBiquadFilter(); bp.type="bandpass"; bp.Q.value=22;
+    const f0=rr(220,520);
+    bp.frequency.setValueAtTime(f0,t);
+    bp.frequency.exponentialRampToValueAtTime(f0*rr(1.35,2.1),t+d);
+    const g=c.createGain(); g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(rr(6,11),t+d*0.3);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    n.connect(bp); bp.connect(g); g.connect(out);
+    n.onended=()=>{ try{out.disconnect();}catch(e){} };
+  },
+  pipe(){ // heating pipe knock down the corridor
+    if(!this.on)return; const c=this.ctx,t=c.currentTime;
+    const out=c.createGain(); out.gain.value=1; out.connect(this.roomG);
+    const hits=2+((Math.random()*2)|0), f0=rr(310,660);
+    for(let i=0;i<hits;i++){
+      const a=t+i*rr(0.16,0.3);
+      const o=c.createOscillator(); o.type="triangle";
+      o.frequency.setValueAtTime(f0*rr(0.97,1.03),a);
+      const g=c.createGain(); g.gain.setValueAtTime(0.0001,a);
+      g.gain.exponentialRampToValueAtTime(0.44/(1+i*0.6),a+0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001,a+0.28);
+      o.connect(g); g.connect(out); o.start(a); o.stop(a+0.32);
+      const o2=c.createOscillator(); o2.type="sine"; o2.frequency.value=f0*2.76;
+      const g2=c.createGain(); g2.gain.setValueAtTime(0.0001,a);
+      g2.gain.exponentialRampToValueAtTime(0.26/(1+i*0.6),a+0.003);
+      g2.gain.exponentialRampToValueAtTime(0.0001,a+0.16);
+      o2.connect(g2); g2.connect(out); o2.start(a); o2.stop(a+0.2);
+    }
+    setTimeout(()=>{ try{out.disconnect();}catch(e){} },1600);
+  },
+  farThud(){ // a door, three rooms away, that you did not open
+    if(!this.on)return; const c=this.ctx,t=c.currentTime;
+    const out=c.createGain(); out.gain.value=1; out.connect(this.roomG);
+    const n=this.noise(t,0.4);
+    const lp=c.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=rr(170,290); lp.Q.value=3;
+    const g=c.createGain(); g.gain.setValueAtTime(rr(4,7),t);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.38);
+    n.connect(lp); lp.connect(g); g.connect(out);
+    const rb=c.createBiquadFilter(); rb.type="bandpass"; rb.frequency.value=rr(430,780); rb.Q.value=1.3;
+    const rg2=c.createGain(); rg2.gain.setValueAtTime(4.2,t);
+    rg2.gain.exponentialRampToValueAtTime(0.0001,t+0.1);
+    n.connect(rb); rb.connect(rg2); rg2.connect(out);
+    n.onended=()=>{ try{out.disconnect();}catch(e){} };
   },
   resume(){ if(this.ctx&&this.ctx.state==="suspended")this.ctx.resume(); },
   setVol(v){ this.vol=v; if(this.master)this.master.gain.value=v; },
@@ -398,19 +758,85 @@ const AU={
     n.connect(f);f.connect(g);g.connect(this.master); n.start(t);
   },
   click(){ this.env("square",900,0.045,0.09,420); },
+  tune(p){ // knocking the set: a dull thunk plus a squeal of carrier finding its lock
+    const f=520+p*180;
+    this.env("triangle",f,0.09,0.10,f*1.7);
+    this.env("sine",f*2.4,0.06,0.05,f*3.1);
+    this.burst(0.05,0.05,2600,700);
+  },
   good(){ this.env("triangle",660,0.16,0.16,1320); this.env("sine",990,0.3,0.09,1980); },
   bad(){ this.env("sawtooth",150,0.28,0.15,70,4); this.burst(0.18,0.1,900,180); },
   buy(){ this.env("square",520,0.07,0.09,780); setTimeout(()=>this.env("square",780,0.08,0.08,1100),55); },
   warn(){ this.env("sine",440,0.5,0.11,440); setTimeout(()=>this.env("sine",370,0.5,0.11,370),260); },
+  /* A voice, not a noise burst. A glottal sawtooth with jitter + vibrato driven
+     through three bandpass formants is the actual recipe for a vowel; sweeping F1/F2
+     from [ɑ] toward [i] while the pitch tears upward is what makes it read as a human
+     losing control rather than a synth patch. The old scare() was a filtered noise
+     burst and a saw sweep, which is why the player heard no screams. */
+  scream(dur,f0,vol){
+    if(!this.on)return; const c=this.ctx,t=c.currentTime,d=dur||1.15,V=vol||1;
+    const out=c.createGain(); out.gain.value=1; out.connect(this.master);
+
+    // glottal source: two saws a few cents apart, pitch tearing up then collapsing
+    const src=c.createGain(); src.gain.value=0.5;
+    [0,17,-23].forEach(det=>{
+      const o=c.createOscillator(); o.type="sawtooth"; o.detune.value=det;
+      o.frequency.setValueAtTime(f0*0.72,t);
+      o.frequency.exponentialRampToValueAtTime(f0*1.28,t+d*0.22);   // the tear upward
+      o.frequency.exponentialRampToValueAtTime(f0*1.05,t+d*0.62);
+      o.frequency.exponentialRampToValueAtTime(f0*0.55,t+d);        // and the collapse
+      o.connect(src); o.start(t); o.stop(t+d+0.05);
+    });
+    // vibrato that widens as the voice loses control
+    const vib=c.createOscillator(); vib.type="sine";
+    vib.frequency.setValueAtTime(4.5,t); vib.frequency.linearRampToValueAtTime(11,t+d);
+    const vg=c.createGain(); vg.gain.setValueAtTime(8,t); vg.gain.linearRampToValueAtTime(58,t+d);
+    vib.connect(vg); vib.start(t); vib.stop(t+d+0.05);
+    // breath/rasp riding with the voice
+    const n=this.noise(t,d);
+    const nhp=c.createBiquadFilter(); nhp.type="highpass"; nhp.frequency.value=900;
+    const ng=c.createGain(); ng.gain.setValueAtTime(0.10*V,t);
+    ng.gain.linearRampToValueAtTime(0.42*V,t+d*0.3);
+    ng.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    n.connect(nhp); nhp.connect(ng); ng.connect(out);
+
+    // amplitude first, so it gates the formants too: instant onset, ragged sustain
+    const env=c.createGain(); env.gain.setValueAtTime(0.0001,t);
+    env.gain.exponentialRampToValueAtTime(0.85*V,t+0.018);
+    env.gain.exponentialRampToValueAtTime(0.55*V,t+d*0.55);
+    env.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    const sat=this.shaper(3.4);
+    src.connect(env); env.connect(sat);
+
+    // three formants sliding [ɑ] -> [i]: F1 down, F2 up hard. That divergence is the
+    // single most "human" cue available and costs three biquads.
+    [[720,300,9,1.0],[1180,2200,11,0.72],[2760,3100,7,0.30]].forEach(F=>{
+      const bp=c.createBiquadFilter(); bp.type="bandpass"; bp.Q.value=F[2];
+      bp.frequency.setValueAtTime(F[0],t);
+      bp.frequency.exponentialRampToValueAtTime(F[1],t+d*0.75);
+      vg.connect(bp.detune);                       // vibrato moves the formants too
+      const fg=c.createGain(); fg.gain.value=F[3];
+      sat.connect(bp); bp.connect(fg); fg.connect(out);
+    });
+    n.onended=()=>{ setTimeout(()=>{ try{out.disconnect();}catch(e){} },600); };
+  },
   scare(){
-    if(!this.on)return; this.burst(0.9,0.5,4200,90);
-    this.env("sawtooth",720,1.1,0.32,55,3);
-    this.env("square",311,0.7,0.16,44);
-    setTimeout(()=>this.burst(0.5,0.22,1800,120),160);
+    if(!this.on)return;
+    this.duck(0.1,120);                       // yank the room away, then hit
+    this.scream(1.2, 330, 1);                 // the scream itself
+    setTimeout(()=>this.scream(0.8, 480, 0.55),90);   // a second voice, higher, behind it
+    this.burst(0.9,0.55,4200,90);
+    this.env("sawtooth",720,1.1,0.30,55,3);
+    this.env("square",311,0.7,0.15,44);
+    setTimeout(()=>this.burst(0.5,0.24,1800,120),160);
   },
   ring(){ this.env("sine",1000,0.35,0.1,1000); setTimeout(()=>this.env("sine",1230,0.35,0.1,1230),20); },
   boxNote(f){ this.env("triangle",f,0.5,0.07,f); this.env("sine",f*2,0.35,0.03,f*2); },
-  setStatic(v){ if(this.staticG)this.ramp(this.staticG,v,0.15); },
+  // every call site speaks the old 0.03-0.30 dialect, and 0.03 of this bed is below a
+  // quiet room. Remap onto something audible, but pass true silence (Dead Air, which
+  // calls setStatic(0)) straight through untouched.
+  setStatic(v){ if(!this.staticG)return;
+    this.ramp(this.staticG, v<0.01?v:0.155+v*1.35, 0.15); },
   setDrone(v,f){ if(this.droneG)this.ramp(this.droneG,v,0.3);
     if(f&&this.droneOsc)this.droneOsc.frequency.linearRampToValueAtTime(f,this.ctx.currentTime+0.4); }
 };
@@ -456,6 +882,30 @@ const COUNTERS=[
  {id:"pattern", nm:"PATTERN",  key:"7", ds:"Broadcasts the sign-off card and station ident."},
  {id:"hook",    nm:"OFF-HOOK", key:"8", ds:"Lifts the studio line. Leaves it open."}
 ];
+
+/* --- the shift ------------------------------------------------------------
+   The night has a length and a destination. Without this the game states no
+   objective anywhere: airtime counted up forever and the only way to reach
+   signOff() was to die. Seven segments, 23:00 to 06:00. The clock HOLDS at :59
+   until the segment's viewer quota is met — that hold is the pressure. */
+const MIN_REAL=3;               // real seconds per in-game minute -> ~21 min a night
+const RUNDOWN=[
+ {nm:"STATION IDENT",     quota:8,     line:"Colour bars and the national anthem. Nobody is watching yet."},
+ {nm:"THE LATE MOVIE",    quota:42,    line:"Something in black and white. The reel is not the one you threaded."},
+ {nm:"OVERNIGHT NEWS",    quota:170,   line:"The autocue is running stories that have not happened."},
+ {nm:"THE DEAD HOUR",     quota:620,   line:"03:00. Nothing is scheduled. Something transmits anyway."},
+ {nm:"TEST TRANSMISSION", quota:2300,  line:"A tone and a card. The card is not the one in the vault."},
+ {nm:"THE CHOIR HOUR",    quota:8200,  line:"They were the night shift once. They still sign in."},
+ {nm:"SIGN-OFF PREP",     quota:27000, line:"Almost morning. Hold it together and you get to leave."}
+];
+const SHIFT_MINUTES=RUNDOWN.length*60;
+function segIndex(){ return Math.min(RUNDOWN.length-1,Math.floor(S.shiftMin/60)); }
+function segOf(){ return RUNDOWN[segIndex()]; }
+function quotaMet(){ return S.subs>=segOf().quota; }
+function shiftClock(){
+  const h=(23+Math.floor(S.shiftMin/60))%24, m=Math.floor(S.shiftMin%60);
+  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
+}
 
 /* --- the eight things in the signal --- */
 const ANOM=[
@@ -518,7 +968,7 @@ function freshState(){
   return {
     sig:0, subs:0, rp:0, lifetimeSubs:0,
     prod:{}, ups:{}, seen:{},
-    night:1, airtime:0, dread:0,
+    night:1, airtime:0, dread:0, shiftMin:0, stalled:false, survived:0,
     stats:{banished:0, wrong:0, scared:0, perfect:0, streak:0, bestStreak:0, ads:0},
     sponsorEnd:0, sponsorCd:0, revives:0,
     flash:true, sfx:0.7, lastSave:Date.now(),
@@ -567,12 +1017,22 @@ function subRate(){
 }
 function rpGain(){ return Math.floor(Math.pow(S.lifetimeSubs/1e4,0.5)); }
 
+/* --- manual tuning ---------------------------------------------------------
+   Without this the game is unplayable: with no producers sigRate() is 0, so the
+   idle tick adds nothing and a new operator can never afford the first 15.
+   Striking the set is the bootstrap AND the thing to do between anomalies. */
+function tuneYield(){
+  const base=2+S.rp*1.5;
+  return (base+sigRate()*0.28)*(S.ups.preheat?1.3:1)*sponsorMult();
+}
+
 /* --- difficulty --- */
 function depth(){ return S.stats.banished+S.stats.scared*2; }
 function anomInterval(){
   const d=depth();
   let base=Math.max(11,27-d*0.35);
   if(S.ups.failsafe)base+=1;
+  if(S.stalled)base*=0.55;   // behind on quota: the night leans on you
   return base*rr(0.78,1.25);
 }
 function banishWindow(){
@@ -606,7 +1066,7 @@ function beginWarn(){
   const pool=unlockedAnoms();
   A.warnDef=pick(pool);
   A.warn=telegraph();
-  AU.warn();
+  AU.warn(); AU.riser(A.warn);
   toast("⚠ CARRIER DISTURBANCE","bad");
 }
 function manifest(){
@@ -618,6 +1078,8 @@ function manifest(){
   if(!S.seen[def.id]){ S.seen[def.id]=true; toast("NEW ENTRY LOGGED — "+def.nm,"gold");
     setTimeout(()=>toast("PRESS M TO READ THE MANUAL","gold"),900); }
   AU.setStatic(0.14); AU.setDrone(0.18, 38+Math.random()*18);
+  AU.impact();                                  // the riser has to land on something
+  AU.deadAir(def.id==="dead");                  // Dead Air: room out, heartbeat left in
   A.glitch=1;
   if(def.id==="call")AU.ring();
   if(def.id==="sleep")[880,784,659,587].forEach((f,i)=>setTimeout(()=>AU.boxNote(f),i*280));
@@ -640,7 +1102,7 @@ function pressCounter(cid){
   else wrongPress(cid);
 }
 function wrongPress(cid){
-  flashKey(cid,"bad"); AU.bad();
+  flashKey(cid,"bad"); AU.reject();
   S.stats.wrong++; A.wrongFx=1;
   const pen=S.ups.autocue?0.45:0.9;
   A.active.t+=pen; A.shake=Math.max(A.shake,6);
@@ -650,15 +1112,22 @@ function resolve(success,silent){
   const a=A.active; if(!a)return;
   A.active=null; A.glitch=0;
   AU.setStatic(0.03); AU.setDrone(0,42);
+  AU.deadAir(false); AU.setHeart(46,0);
   if(success){
     S.stats.banished++; S.stats.streak++;
     S.stats.bestStreak=Math.max(S.stats.bestStreak,S.stats.streak);
     const fast=a.t<a.window*0.4;
     if(fast)S.stats.perfect++;
-    const bonus=sigRate()*(fast?18:9);
+    // floor the payout on tuneYield too — with no transmitters sigRate() is 0, and a
+    // banish that pays nothing teaches the player that banishing doesn't matter
+    const bonus=Math.max(sigRate()*(fast?18:9), tuneYield()*(fast?26:14));
     S.sig+=bonus;
+    // banishing is the FAST way to make quota — that is what ties the two halves of
+    // the game together instead of leaving anomalies as a pure tax on idle income
+    const vg=Math.max(3,segOf().quota*(fast?0.16:0.09));
+    S.subs+=vg; S.lifetimeSubs+=vg;
     A.banishFx=1; S.dread=Math.max(0,S.dread-6);
-    if(!silent)AU.good();
+    if(!silent)AU.banishStinger(fast);
     toast((fast?"CLEAN KILL — ":"BANISHED — ")+a.def.nm+"  +"+fmt(bonus)+" SIG"+
       (S.stats.streak>2?"   ×"+S.stats.streak+" STREAK":""),"good");
   }
@@ -670,7 +1139,8 @@ function jumpscare(){
   A.active=null; A.glitch=0;
   A.scare=1.5; A.scareDef=def; A.shake=26; A.flash=1;
   AU.scare(); AU.setStatic(0.22); AU.setDrone(0,42);
-  setTimeout(()=>{AU.setStatic(0.03);},1400);
+  AU.deadAir(false); AU.setHeart(150,0.30);
+  setTimeout(()=>{AU.setStatic(0.03); AU.setHeart(70,0.06);},1400);
 
   S.stats.scared++; S.stats.streak=0;
   const half=S.ups.lead?0.5:1;
@@ -719,9 +1189,51 @@ function revive(){
     toast("SPONSOR SECURED — BACK ON AIR","gold");
   },"EMERGENCY SPONSORSHIP");
 }
+/* 06:00. The thing the whole night was for. */
+function dawn(){
+  if(A.lost)return;
+  A.lost=true; A.active=null; A.warn=0; A.warnDef=null;
+  AU.setStatic(0.03); AU.setDrone(0,42); AU.deadAir(false); AU.setHeart(46,0);
+  AU.env("sine",523,0.9,0.12,523);
+  setTimeout(()=>AU.env("sine",659,0.9,0.12,659),300);
+  setTimeout(()=>AU.env("sine",784,1.6,0.14,784),600);
+  S.survived++;
+  S.dawnBonus=6;        // surviving the night is worth more than bailing out of it
+  const g=rpGain()+S.dawnBonus;
+  const sheet=$("#lostSheet"), hd=sheet.querySelector("h2"), bd=$("#lostBody"), ab=$("#acceptBtn");
+  sheet.classList.add("win");
+  sheet.style.borderColor="#2f7a4c";
+  sheet.style.background="linear-gradient(#06140b,#030803)";
+  hd.innerHTML="<span>☀ 06:00 — SIGN-OFF</span><span></span>";
+  hd.style.color="var(--green)"; hd.style.borderBottomColor="#1b3a26"; hd.style.background="#040c07";
+  bd.style.color="#a8c4b4";
+  ab.style.background="#06210f"; ab.style.borderColor="#2f7a4c"; ab.style.color="var(--green)";
+  $("#lostBody").innerHTML=
+    "<p>The test card comes up on its own. Whatever was in the signal goes back down into it, "+
+    "the way it does every morning, and the room is just a room again.</p>"+
+    "<p><b>YOU MADE IT TO 06:00.</b> Night "+S.night+" survived — "+S.stats.banished+
+    " banished, "+S.stats.scared+" got through, best streak "+S.stats.bestStreak+".</p>"+
+    "<p>Sign the log and hand over. Bank <b>"+fmt(g)+" ratings points</b> "+
+    "(permanent ×"+(1+(S.rp+g)*0.08).toFixed(2)+" to everything) and open NIGHT "+(S.night+1)+
+    ", which starts at 23:00 and is worse.</p>"+
+    "<p style='color:#7d9091;font-size:11px'>Nights survived: "+S.survived+"</p>";
+  $("#reviveBtn").style.display="none";
+  $("#acceptBtn").textContent="SIGN THE LOG — BANK "+fmt(g)+" RP";
+  openModal("modalLost");
+}
+
 function signOff(){
+  // put the modal back into its SIGNAL LOST clothes for next time
+  $("#reviveBtn").style.display="";
+  const sh=$("#lostSheet"), hh=sh.querySelector("h2"), bb=$("#lostBody"), ab2=$("#acceptBtn");
+  sh.classList.remove("win");
+  sh.style.borderColor=""; sh.style.background="";
+  hh.innerHTML="<span>◼ SIGNAL LOST</span><span></span>";
+  hh.style.color=""; hh.style.borderBottomColor=""; hh.style.background="";
+  bb.style.color=""; ab2.style.background=""; ab2.style.borderColor=""; ab2.style.color="";
+  S.shiftMin=0; S.stalled=false;
   closeModal("modalLost");
-  const g=rpGain();
+  const g=rpGain()+(S.dawnBonus||0); S.dawnBonus=0;
   S.rp+=g; S.night++; S.sig=0; S.subs=0; S.lifetimeSubs=0;
   PRODUCERS.forEach(p=>S.prod[p.id]=0);
   S.dread=0; S.airtime=0; S.revives=0; A.lost=false; A.active=null;
@@ -851,6 +1363,29 @@ const SW=96,SH=74;
 
 let tGlobal=0;
 
+/* ---------- manual tuning: strike the set ---------- */
+const TUNE={pops:[],ripples:[],heat:0,strikes:0,rate:0,recent:[]};
+function tuneStrike(x,y){
+  if($("#boot").style.display!=="none"||adRun||A.lost)return;
+  AU.init(); AU.resume();
+  const g=tuneYield();
+  S.sig+=g; TUNE.strikes++;
+  TUNE.recent.push(tGlobal);
+  TUNE.heat=Math.min(1,TUNE.heat+0.28);
+  TUNE.pops.push({x,y,v:"+"+fmt(g),t:0});
+  TUNE.ripples.push({x,y,t:0});
+  if(TUNE.pops.length>16)TUNE.pops.shift();
+  if(TUNE.ripples.length>12)TUNE.ripples.shift();
+  AU.tune(TUNE.heat);
+}
+// map a pointer anywhere on the cabinet into canvas space, then hit-test the tube
+cv.style.cursor="crosshair";
+cv.addEventListener("pointerdown",e=>{
+  const r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left)/r.width*1280, y=(e.clientY-r.top)/r.height*720;
+  if(x>=SCR.x&&x<=SCR.x+SCR.w&&y>=SCR.y&&y<=SCR.y+SCR.h){ e.preventDefault(); tuneStrike(x,y); }
+});
+
 /* ---------- feed content ---------- */
 function drawFeedNormal(t){
   F.fillStyle="#04120a"; F.fillRect(0,0,FW,FH);
@@ -886,6 +1421,24 @@ function drawFeedNormal(t){
   F.fillText("KBLK-7",FW/2,26);
   F.font="8px 'Courier New',monospace"; F.fillStyle="rgba(150,220,180,.7)";
   F.fillText("NOW BROADCASTING · NIGHT "+S.night,FW/2,38);
+
+  // the carrier needs holding by hand until the transmitters can do it
+  const owned=PRODUCERS.reduce((n,p)=>n+(S.prod[p.id]||0),0);
+  if(owned<3){
+    const pulse=0.55+Math.sin(t*4)*0.45;
+    F.fillStyle="rgba(0,0,0,.55)"; F.fillRect(28,FH*0.38,FW-56,44);
+    F.strokeStyle="rgba(140,255,200,"+(0.35+pulse*0.4)+")"; F.lineWidth=1;
+    F.strokeRect(28.5,FH*0.38+.5,FW-57,43);
+    F.fillStyle="rgba(200,255,225,"+(0.6+pulse*0.4)+")";
+    F.font="bold 13px 'Courier New',monospace"; F.textAlign="center";
+    F.fillText("STRIKE THE SET TO HOLD THE CARRIER",FW/2,FH*0.38+20);
+    F.font="9px 'Courier New',monospace"; F.fillStyle="rgba(150,220,185,.8)";
+    F.fillText(TUNE.strikes<1?"◂ CLICK ANYWHERE ON THIS SCREEN ▸"
+      :"BUY A TRANSMITTER AND IT HOLDS ITSELF",FW/2,FH*0.38+35);
+  } else if(TUNE.rate>0){
+    F.fillStyle="rgba(150,220,185,.75)"; F.font="9px 'Courier New',monospace"; F.textAlign="center";
+    F.fillText("MANUAL HOLD  "+TUNE.rate+"/s",FW/2,FH*0.38+8);
+  }
 
   // ticker
   const tick="  SIGNAL "+fmt(S.sig)+"   SUBSCRIBERS "+fmt(S.subs)+"   OUTPUT "+fmt(rate)+"/s   STREAK "+S.stats.streak+" ";
@@ -1447,6 +2000,19 @@ function drawMainCRT(t){
   const rf=g.createLinearGradient(SCR.x,SCR.y,SCR.x+SCR.w*0.6,SCR.y+SCR.h*0.6);
   rf.addColorStop(0,"rgba(255,255,255,.045)"); rf.addColorStop(0.35,"rgba(255,255,255,0)");
   g.fillStyle=rf; g.fillRect(SCR.x,SCR.y,SCR.w,SCR.h);
+
+  // tuning feedback — struck-glass rings and the signal you knocked loose
+  for(const r of TUNE.ripples){
+    const p=r.t/0.55; if(p>1)continue;
+    g.strokeStyle="rgba(150,255,200,"+(0.5*(1-p))+")"; g.lineWidth=2*(1-p)+0.5;
+    g.beginPath(); g.arc(r.x,r.y,8+p*54,0,TAU); g.stroke();
+  }
+  for(const p of TUNE.pops){
+    const k=p.t/0.9; if(k>1)continue;
+    g.fillStyle="rgba(180,255,215,"+(1-k)+")";
+    g.font="bold 15px 'Courier New',monospace"; g.textAlign="center";
+    g.fillText(p.v,p.x,p.y-k*34);
+  }
   g.restore();
 
   // phosphor bloom around the tube
@@ -1848,6 +2414,24 @@ function step(now){
     const dsub=ur*dt; S.subs+=dsub; S.lifetimeSubs+=dsub;
     S.airtime+=dt;
 
+    // the shift clock. It runs freely to :59 and then holds until the segment's
+    // quota is met — falling behind stops time and brings the anomalies in faster.
+    const seg0=segIndex();
+    if(S.shiftMin%60>=59 && !quotaMet()){
+      if(!S.stalled){ S.stalled=true; toast("⧗ CLOCK HELD — "+segOf().nm+" IS SHORT OF VIEWERS","bad"); }
+      S.dread=Math.min(100,S.dread+dt*0.9);
+    }else{
+      if(S.stalled){ S.stalled=false; toast("QUOTA MET — CLOCK RUNNING","good"); }
+      S.shiftMin+=dt/MIN_REAL;
+      if(segIndex()!==seg0 && S.shiftMin<SHIFT_MINUTES){
+        const s=segOf();
+        toast("▶ "+shiftClock()+"  "+s.nm,"gold");
+        setTimeout(()=>toast(s.line,"gold"),1100);
+        AU.env("sine",392,0.5,0.10,392); setTimeout(()=>AU.env("sine",523,0.7,0.10,523),260);
+      }
+      if(S.shiftMin>=SHIFT_MINUTES) dawn();
+    }
+
     // dread decay
     const dec=(S.ups.failsafe?1.6:0.8)*dt;
     if(!A.active)S.dread=Math.max(0,S.dread-dec);
@@ -1863,15 +2447,29 @@ function step(now){
       S.dread=Math.min(100,S.dread+dt*(1.2+depth()*0.02));
       const p=A.active.t/A.active.window;
       AU.setStatic(A.active.def.id==="dead"?0.005:0.08+p*0.22);
+      AU.setHeart(54+p*p*118, 0.10+p*0.34);   // 54 -> 172bpm; p*p back-loads the panic
       if(A.active.t>=A.active.window)jumpscare();
     } else if(A.warn>0){
       A.warn-=dt; if(A.warn<=0)manifest();
     } else {
+      // between anomalies the heart is only there if the night has gone badly
+      AU.setHeart(44+S.dread*0.36, S.dread>55?(S.dread-55)/45*0.13:0);
       A.nextAt-=dt;
       if(A.nextAt<=0)beginWarn();
     }
     if(S.dread>=100&&!A.active&&!A.lost)signalLost();
   }
+
+  // the room keeps breathing behind modals, the manual and the ad break
+  AU.tick(dt);
+  AU.setDread(S.dread/100);
+
+  // tuning fx decay + strikes-per-second readout
+  TUNE.heat=Math.max(0,TUNE.heat-dt*0.55);
+  TUNE.pops.forEach(p=>p.t+=dt);  TUNE.pops=TUNE.pops.filter(p=>p.t<0.9);
+  TUNE.ripples.forEach(r=>r.t+=dt); TUNE.ripples=TUNE.ripples.filter(r=>r.t<0.55);
+  TUNE.recent=TUNE.recent.filter(t=>tGlobal-t<1);
+  TUNE.rate=TUNE.recent.length;
 
   // fx decay
   A.shake=Math.max(0,A.shake-dt*36);
@@ -1902,8 +2500,12 @@ function syncUI(){
   $("#rSubRate").textContent="+"+fmt(subRate())+" /s";
   $("#rRp").textContent=fmt(S.rp);
   $("#rMult").textContent="×"+(sigMult()).toFixed(2)+(S.sponsorEnd>0?" ◆":"");
-  $("#rClock").textContent=mmss(S.airtime);
-  $("#rNight").textContent="NIGHT "+S.night;
+  const sg=segOf();
+  $("#rClock").textContent=shiftClock();
+  $("#rClock").style.color=S.stalled?"var(--red)":"";
+  $("#rNight").textContent=(S.stalled?"⧗ HELD · ":"")+sg.nm;
+  $("#rQuota").textContent=fmt(Math.min(S.subs,sg.quota))+" / "+fmt(sg.quota);
+  $("#qFill").style.width=Math.min(100,S.subs/sg.quota*100)+"%";
   $("#dreadFill").style.width=S.dread+"%";
   const oa=$("#onair");
   if(A.lost){ oa.textContent="SIGNAL LOST"; oa.classList.remove("live"); }
