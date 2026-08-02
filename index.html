@@ -1,0 +1,1988 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>FINAL BROADCAST — KBLK-7</title>
+<meta name="description" content="You have the night shift at a dead TV station. Keep the signal climbing, and when something gets into the feed, cut it out before it looks back. A retro horror idle game.">
+<meta name="theme-color" content="#05070a">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23070a0b'/%3E%3Crect x='4' y='7' width='24' height='16' rx='2' fill='%230d1a12' stroke='%236dff9a' stroke-width='1.5'/%3E%3Cpath d='M7 19h18' stroke='%236dff9a' stroke-width='1.5' opacity='.5'/%3E%3Ccircle cx='16' cy='14' r='3' fill='%236dff9a' opacity='.8'/%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="KBLK-7">
+<meta property="og:title" content="FINAL BROADCAST — eight things live in the signal">
+<meta property="og:description" content="A retro horror idle game. Harvest signal, grow subscribers, and banish whatever crawls into the feed before it takes the numbers with it. Each anomaly dies to exactly one button. Free, in your browser.">
+<meta property="og:url" content="https://jasraajdevz.github.io/final-broadcast/">
+<meta property="og:image" content="https://jasraajdevz.github.io/final-broadcast/share.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A CRT monitor in a dark control room showing a colour-bar test card with a child's chalk-drawn face, under the words FINAL BROADCAST.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="FINAL BROADCAST — eight things live in the signal">
+<meta name="twitter:description" content="A retro horror idle game. Keep the station on air. Banish what gets into the feed. Free, in your browser.">
+<meta name="twitter:image" content="https://jasraajdevz.github.io/final-broadcast/share.jpg">
+<style>
+/* ============================================================
+   FINAL BROADCAST — retro horror idle
+   Everything is bound to a fixed 1280x720 cabinet that scales.
+   ============================================================ */
+:root{
+  --amber:#ffb347; --amber-dim:#8a5b1e;
+  --green:#6dff9a; --green-dim:#1f6b39;
+  --red:#ff3b30; --red-dim:#701410;
+  --cyan:#57e6ff;
+  --panel:#0d0f10; --panel-2:#151a1b; --edge:#2a3234;
+  --ink:#c9d6d4;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#000;overflow:hidden;
+  font-family:"Courier New",Courier,monospace;color:var(--ink);
+  user-select:none;-webkit-user-select:none}
+#wrap{position:fixed;inset:0;display:grid;place-items:center;background:
+  radial-gradient(120% 90% at 50% 40%,#0a0c0d 0%,#000 75%)}
+/* absolutely positioned + origin 0 0: fit() does the centring arithmetic itself.
+   Grid/flex centring CANNOT be used here — below 1280x720 the auto track sizes to the
+   item's own min-content, so the item is start-aligned and the scaled cabinet lands
+   off-screen with no way to scroll to it. */
+#cab{position:absolute;left:0;top:0;width:1280px;height:720px;transform-origin:0 0;
+  box-shadow:0 0 120px rgba(0,0,0,.9)}
+canvas#scene{position:absolute;inset:0;width:1280px;height:720px;display:block}
+#ui{position:absolute;inset:0;pointer-events:none}
+#ui > *{pointer-events:auto}
+
+/* ---------- top status strip ---------- */
+#status{position:absolute;left:0;top:0;width:940px;height:66px;
+  background:linear-gradient(#12181a,#080b0c);border-bottom:2px solid #000;
+  box-shadow:inset 0 -1px 0 #2c3739, 0 4px 12px rgba(0,0,0,.7);
+  display:flex;align-items:center;gap:0;padding:0 10px}
+.rdo{padding:0 14px;border-right:1px solid #1e2628;height:44px;display:flex;
+  flex-direction:column;justify-content:center;min-width:118px}
+.rdo .lbl{font-size:9px;letter-spacing:2px;color:#5d6f70}
+.rdo .val{font-size:19px;letter-spacing:1px;color:var(--green);
+  text-shadow:0 0 8px rgba(109,255,154,.45);line-height:1.15}
+.rdo .sub{font-size:10px;color:#4d8f68}
+.rdo.amberv .val{color:var(--amber);text-shadow:0 0 8px rgba(255,179,71,.45)}
+.rdo.cyanv .val{color:var(--cyan);text-shadow:0 0 8px rgba(87,230,255,.4)}
+#dreadWrap{flex:1;padding:0 14px}
+#dreadWrap .lbl{font-size:9px;letter-spacing:2px;color:#7a5a5a;margin-bottom:4px}
+#dreadBar{height:16px;background:#160c0c;border:1px solid #3a1a1a;position:relative;overflow:hidden}
+#dreadFill{position:absolute;inset:0;width:0%;background:linear-gradient(90deg,#7a2020,#ff3b30);
+  transition:width .18s linear}
+#dreadBar .ticks{position:absolute;inset:0;background:repeating-linear-gradient(90deg,
+  transparent 0 19px,#000 19px 20px)}
+#onair{margin-left:auto;padding:6px 12px;border:2px solid #4a1010;background:#1a0808;
+  color:#6b2b2b;font-size:12px;letter-spacing:3px}
+#onair.live{background:#3a0a0a;border-color:#ff3b30;color:#ff5b50;
+  text-shadow:0 0 10px rgba(255,59,48,.8);animation:pulseair 1.6s infinite}
+@keyframes pulseair{0%,100%{opacity:1}50%{opacity:.55}}
+
+/* ---------- right rack ---------- */
+#rack{position:absolute;right:0;top:0;width:340px;height:720px;
+  background:linear-gradient(#101617,#070a0b);border-left:3px solid #000;
+  box-shadow:inset 3px 0 0 #2c3739,-8px 0 24px rgba(0,0,0,.7);
+  display:flex;flex-direction:column}
+#tabs{display:flex;border-bottom:1px solid #232c2e;background:#0a0e0f}
+.tab{flex:1;padding:11px 0;text-align:center;font-size:10px;letter-spacing:2px;
+  color:#54666a;cursor:pointer;border-right:1px solid #1a2223;background:#0a0e0f}
+.tab:last-child{border-right:0}
+.tab.on{color:var(--amber);background:#161c1d;box-shadow:inset 0 -2px 0 var(--amber)}
+.tab:hover{color:#9fb3b2}
+#rackBody{flex:1;overflow-y:auto;overflow-x:hidden;padding:8px}
+#rackBody::-webkit-scrollbar{width:8px}
+#rackBody::-webkit-scrollbar-track{background:#080b0c}
+#rackBody::-webkit-scrollbar-thumb{background:#243032;border:1px solid #0d1112}
+.item{border:1px solid #202a2c;background:linear-gradient(#12181a,#0c1112);
+  margin-bottom:6px;padding:8px 9px;cursor:pointer;position:relative;overflow:hidden}
+.item:hover{border-color:#3a4a4d;background:linear-gradient(#182022,#0e1415)}
+.item.afford{border-color:#2f5a3d}
+.item.afford:hover{border-color:var(--green-dim);box-shadow:0 0 12px rgba(109,255,154,.12)}
+.item.locked{opacity:.42;cursor:not-allowed}
+.item.owned{opacity:.5;cursor:default;border-color:#2a3a2e}
+.item .row1{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.item .nm{font-size:13.5px;letter-spacing:1px;color:#d8e6e4}
+.item .ct{font-size:12.5px;color:var(--amber)}
+.item.afford .ct{color:var(--green)}
+.item .ds{font-size:11px;color:#6b7d80;margin-top:3px;line-height:1.35}
+.item .st{font-size:11px;color:#4f6f60;margin-top:3px;display:flex;justify-content:space-between;
+  padding-right:30px}
+.item .qty{position:absolute;right:8px;bottom:6px;font-size:16px;color:#2f4a4d}
+.hd{font-size:9px;letter-spacing:3px;color:#4d5e60;margin:10px 2px 6px;
+  border-bottom:1px solid #1b2324;padding-bottom:4px}
+.bigbtn{display:block;width:100%;padding:12px;margin:6px 0;background:#1a0f04;
+  border:1px solid #6a4413;color:var(--amber);font-family:inherit;font-size:12px;
+  letter-spacing:2px;cursor:pointer}
+.bigbtn:hover{background:#2a1806;box-shadow:0 0 14px rgba(255,179,71,.2)}
+.bigbtn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none;background:#12100c}
+.bigbtn.grn{background:#04180d;border-color:#2f7a4c;color:var(--green)}
+.bigbtn.grn:hover{background:#062a15;box-shadow:0 0 14px rgba(109,255,154,.2)}
+.note{font-size:9.5px;color:#63757a;line-height:1.5;padding:4px 2px}
+
+/* ---------- bottom console ---------- */
+#deck{position:absolute;left:0;top:600px;width:940px;height:120px;
+  padding:6px 10px 6px;display:flex;gap:8px;align-items:stretch}
+#keys{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:1fr 1fr;
+  gap:6px;flex:1}
+.key{position:relative;background:linear-gradient(#232b2d,#141a1b);
+  border:1px solid #000;border-top:1px solid #3d4a4d;
+  box-shadow:0 3px 0 #050708,0 5px 8px rgba(0,0,0,.6);
+  color:#93a6a6;font-family:inherit;font-size:12px;letter-spacing:2px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+/* deck/rack type runs large on purpose: the whole cabinet is scaled by fit(), so on a
+   landscape phone (s≈0.52) these are the smallest sizes that stay legible. */
+.key .kn{font-size:17px}
+.key .kk{font-size:11px;color:#4e6062;letter-spacing:1px}
+.key:hover{background:linear-gradient(#2b3436,#1a2122);color:#cfe0de}
+.key:active,.key.down{transform:translateY(3px);box-shadow:0 0 0 #050708,0 1px 4px rgba(0,0,0,.6)}
+.key.hot{border-color:#7a2a24;color:#ffb0a8}
+.key.good{background:linear-gradient(#0d3a1f,#06210f);color:#7dffa8;border-top-color:#2f8a55}
+.key.bad{background:linear-gradient(#3a0d0d,#210606);color:#ff9a92;border-top-color:#8a2f2f}
+#sidekeys{width:150px;display:flex;flex-direction:column;gap:6px}
+.skey{flex:1;background:linear-gradient(#241a08,#140e04);border:1px solid #000;
+  border-top:1px solid #5a4416;box-shadow:0 3px 0 #050708;color:var(--amber);
+  font-family:inherit;font-size:11px;letter-spacing:2px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center}
+.skey small{font-size:8px;color:#8a6a30;letter-spacing:1px}
+.skey:hover{background:linear-gradient(#332409,#1c1305)}
+.skey:disabled{opacity:.4;cursor:not-allowed}
+.skey.ready{animation:sponsorGlow 2.2s infinite}
+@keyframes sponsorGlow{0%,100%{box-shadow:0 3px 0 #050708}50%{box-shadow:0 3px 0 #050708,0 0 18px rgba(255,179,71,.5)}}
+
+/* ---------- modals ---------- */
+.modal{position:absolute;inset:0;background:rgba(0,0,0,.86);display:none;
+  align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(2px)}
+.modal.on{display:flex}
+.sheet{width:840px;max-height:640px;background:linear-gradient(#0e1314,#080b0c);
+  border:2px solid #2a3436;box-shadow:0 0 60px rgba(0,0,0,.9),inset 0 0 60px rgba(0,0,0,.6);
+  display:flex;flex-direction:column}
+.sheet h2{margin:0;padding:12px 18px;font-size:14px;letter-spacing:5px;color:var(--amber);
+  border-bottom:1px solid #26302f;background:#0a0e0f;display:flex;justify-content:space-between;align-items:center}
+.x{cursor:pointer;color:#5c6e70;font-size:16px;letter-spacing:0;padding:0 6px}
+.x:hover{color:var(--red)}
+#manBody{display:flex;flex:1;min-height:0}
+#manList{width:250px;border-right:1px solid #202a2b;overflow-y:auto;background:#080b0c}
+.mrow{padding:10px 12px;font-size:12.5px;letter-spacing:1px;color:#61767a;cursor:pointer;
+  border-bottom:1px solid #131a1b;display:flex;justify-content:space-between;gap:6px}
+.mrow:hover{background:#111819;color:#b7c9c7}
+.mrow.on{background:#161e1f;color:var(--amber);box-shadow:inset 3px 0 0 var(--amber)}
+.mrow.unk{color:#3b4749;font-style:italic}
+.mrow .tag{font-size:8px;color:#3f5052}
+#manPage{flex:1;padding:16px 20px;overflow-y:auto}
+#manPage h3{margin:0 0 2px;font-size:17px;letter-spacing:4px;color:#e6f2ef}
+#manPage .cls{font-size:9px;letter-spacing:3px;color:#6b4a4a;margin-bottom:12px}
+#manPage canvas{width:320px;height:240px;image-rendering:pixelated;border:1px solid #263031;
+  background:#000;float:right;margin:0 0 10px 14px}
+.fld{margin-bottom:11px}
+.fld .k{font-size:9px;letter-spacing:3px;color:#556769;margin-bottom:3px}
+.fld .v{font-size:13.5px;line-height:1.6;color:#b9cbc8}
+.fld .v.warn{color:#ff9a92}
+.ctag{display:inline-block;padding:3px 10px;border:1px solid var(--green-dim);
+  color:var(--green);font-size:12px;letter-spacing:3px;background:#04180d}
+.ctag.unk{border-color:#3a3a3a;color:#4a5456;background:#0d0f10}
+#manList::-webkit-scrollbar,#manPage::-webkit-scrollbar{width:8px}
+#manList::-webkit-scrollbar-thumb,#manPage::-webkit-scrollbar-thumb{background:#243032}
+
+/* ad break */
+#adSheet{width:720px;height:520px;display:flex;flex-direction:column;
+  border:2px solid #3a2a0a;background:#000}
+#adCanvasWrap{flex:1;position:relative;background:#000;overflow:hidden}
+#adCanvas{width:100%;height:100%;image-rendering:pixelated}
+#adBar{padding:9px 14px;background:#0a0e0f;border-top:1px solid #2a2418;
+  display:flex;justify-content:space-between;align-items:center;font-size:10px;letter-spacing:2px;color:#7a6a44}
+#adSkip{padding:7px 16px;background:#1a1206;border:1px solid #5a4416;color:var(--amber);
+  font-family:inherit;font-size:11px;letter-spacing:2px;cursor:pointer}
+#adSkip:disabled{opacity:.35;cursor:not-allowed}
+
+/* signal lost */
+#lostSheet{width:660px;border:2px solid #5a1414;background:linear-gradient(#140606,#080303)}
+#lostSheet h2{color:var(--red);border-bottom-color:#3a1010;background:#0d0303}
+#lostBody{padding:22px 26px;font-size:12px;line-height:1.8;color:#c0a3a3}
+#lostBody b{color:#ff8b82}
+#lostBtns{display:flex;gap:10px;padding:0 26px 22px}
+#lostBtns button{flex:1;padding:14px;font-family:inherit;font-size:11px;letter-spacing:2px;cursor:pointer}
+#reviveBtn{background:#1a1206;border:1px solid #6a4413;color:var(--amber)}
+#reviveBtn:hover{background:#2a1c08;box-shadow:0 0 16px rgba(255,179,71,.25)}
+#acceptBtn{background:#140606;border:1px solid #5a1414;color:#c46b63}
+#acceptBtn:hover{background:#200909}
+
+/* toasts */
+#toasts{position:absolute;left:0;top:462px;width:940px;display:flex;flex-direction:column;
+  align-items:center;gap:4px;z-index:30;pointer-events:none}
+.toast{padding:6px 16px;background:rgba(6,10,11,.92);border:1px solid #2a3436;
+  font-size:11px;letter-spacing:2px;color:#b9cbc8;animation:tin .3s ease-out}
+.toast.good{border-color:var(--green-dim);color:var(--green)}
+.toast.bad{border-color:#6b1a16;color:#ff8b82}
+.toast.gold{border-color:#6a4413;color:var(--amber)}
+@keyframes tin{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+/* boot / sign-on */
+#boot{position:absolute;inset:0;background:#000;z-index:60;display:flex;
+  align-items:center;justify-content:center;flex-direction:column;gap:22px;text-align:center;padding:40px}
+#boot h1{margin:0;font-size:44px;letter-spacing:14px;color:#e8f2ef;
+  text-shadow:0 0 24px rgba(87,230,255,.35),3px 0 0 rgba(255,0,60,.35),-3px 0 0 rgba(0,200,255,.3)}
+#boot .sig{font-size:11px;letter-spacing:8px;color:#4d6164}
+#boot p{max-width:640px;font-size:12px;line-height:2;color:#7d9091;margin:0}
+#boot p em{color:#b9cbc8;font-style:normal}
+#startBtn{margin-top:6px;padding:16px 44px;background:#0a1a10;border:1px solid #2f7a4c;
+  color:var(--green);font-family:inherit;font-size:14px;letter-spacing:6px;cursor:pointer}
+#startBtn:hover{background:#0e2a18;box-shadow:0 0 26px rgba(109,255,154,.28)}
+#boot .fine{font-size:9px;letter-spacing:2px;color:#3f4e50}
+#rot{position:fixed;inset:0;display:none;place-items:center;background:#000;z-index:99;
+  color:#7d9091;font-size:15px;letter-spacing:3px;text-align:center;padding:30px;line-height:2}
+</style>
+
+<div id="wrap">
+<div id="cab">
+  <canvas id="scene" width="1280" height="720"></canvas>
+  <div id="ui">
+
+    <div id="status">
+      <div class="rdo"><div class="lbl">SIGNAL</div><div class="val" id="rSig">0</div><div class="sub" id="rSigRate">+0 /s</div></div>
+      <div class="rdo cyanv"><div class="lbl">SUBSCRIBERS</div><div class="val" id="rSub">0</div><div class="sub" id="rSubRate">+0 /s</div></div>
+      <div class="rdo amberv"><div class="lbl">RATINGS PTS</div><div class="val" id="rRp">0</div><div class="sub" id="rMult">x1.00</div></div>
+      <div class="rdo"><div class="lbl">AIRTIME</div><div class="val" id="rClock">00:00</div><div class="sub" id="rNight">NIGHT 1</div></div>
+      <div id="dreadWrap"><div class="lbl">DREAD</div>
+        <div id="dreadBar"><div id="dreadFill"></div><div class="ticks"></div></div></div>
+      <div id="onair">OFF AIR</div>
+    </div>
+
+    <div id="rack">
+      <div id="tabs">
+        <div class="tab on" data-tab="tx">TRANSMIT</div>
+        <div class="tab" data-tab="hw">HARDWARE</div>
+        <div class="tab" data-tab="st">STATION</div>
+      </div>
+      <div id="rackBody"></div>
+    </div>
+
+    <div id="deck">
+      <div id="keys"></div>
+      <div id="sidekeys">
+        <button class="skey" id="sponsorBtn">SPONSOR<small id="sponsorSub">READY</small></button>
+        <button class="skey" id="manualBtn">MANUAL<small>KEY: M</small></button>
+      </div>
+    </div>
+
+    <div id="toasts"></div>
+
+    <!-- OPERATOR'S MANUAL -->
+    <div class="modal" id="modalManual"><div class="sheet">
+      <h2><span>KBLK-7 &nbsp;·&nbsp; OPERATOR'S FIELD MANUAL</span><span class="x" data-close="modalManual">[ESC]</span></h2>
+      <div id="manBody">
+        <div id="manList"></div>
+        <div id="manPage"></div>
+      </div>
+    </div></div>
+
+    <!-- SPONSOR BREAK -->
+    <div class="modal" id="modalAd"><div class="sheet" id="adSheet">
+      <div id="adCanvasWrap"><canvas id="adCanvas" width="480" height="360"></canvas></div>
+      <div id="adBar"><span id="adLabel">PAID PROGRAMMING</span><button id="adSkip" disabled>SKIP</button></div>
+    </div></div>
+
+    <!-- SIGNAL LOST -->
+    <div class="modal" id="modalLost"><div class="sheet" id="lostSheet">
+      <h2><span>◼ SIGNAL LOST</span><span></span></h2>
+      <div id="lostBody"></div>
+      <div id="lostBtns">
+        <button id="reviveBtn">EMERGENCY SPONSOR — STAY ON AIR</button>
+        <button id="acceptBtn">SIGN OFF</button>
+      </div>
+    </div></div>
+
+    <!-- SIGN ON -->
+    <div id="boot">
+      <div class="sig">STATION KBLK-7 &nbsp;·&nbsp; 1,140 kHz &nbsp;·&nbsp; LICENSE REVOKED 1987</div>
+      <h1>FINAL BROADCAST</h1>
+      <p>You have the night shift. Keep the carrier up, keep the numbers climbing —
+      and when <em>something gets into the feed</em>, cut it out before it looks back.</p>
+      <p style="font-size:11px;color:#6b7d80">Eight things live in the signal. Each one dies to exactly one button.<br>
+      The manual tells you which. Read it. <em>Press M any time.</em></p>
+      <button id="startBtn">SIGN ON</button>
+      <div class="fine">HEADPHONES RECOMMENDED &nbsp;·&nbsp; FLASHING IMAGES &nbsp;·&nbsp; TOGGLE IN STATION TAB</div>
+    </div>
+
+  </div>
+</div>
+</div>
+<div id="rot">ROTATE YOUR DEVICE<br><span style="font-size:10px;color:#4a5a5c">FINAL BROADCAST REQUIRES LANDSCAPE</span></div>
+
+<script>
+"use strict";
+/* ============================================================================
+   0. HELPERS
+   ========================================================================= */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const TAU=Math.PI*2;
+let seed=1337;
+function rnd(){seed=(seed*1664525+1013904223)|0;return ((seed>>>8)&0xffffff)/0xffffff;}
+const rr=(a,b)=>a+Math.random()*(b-a);
+const pick=a=>a[(Math.random()*a.length)|0];
+
+const SUF=["","K","M","B","T","Qa","Qi","Sx","Sp","Oc","No","Dc"];
+function fmt(n){
+  if(!isFinite(n))return "∞";
+  if(n<0)return "-"+fmt(-n);
+  if(n<1000)return n<10?(Math.round(n*10)/10).toString().replace(/\.0$/,""):Math.floor(n).toString();
+  let t=0; while(n>=1000&&t<SUF.length-1){n/=1000;t++;}
+  return (n<10?n.toFixed(2):n<100?n.toFixed(1):Math.floor(n))+SUF[t];
+}
+function mmss(s){const m=(s/60)|0;return String(m).padStart(2,"0")+":"+String((s|0)%60).padStart(2,"0");}
+
+/* ============================================================================
+   1. AUDIO  — everything synthesised, no assets
+   ========================================================================= */
+const AU={
+  ctx:null, on:false, master:null, vol:0.7,
+  staticG:null, humG:null, droneOsc:null, droneG:null, noiseSrc:null,
+  init(){
+    if(this.ctx)return;
+    const C=window.AudioContext||window.webkitAudioContext; if(!C)return;
+    const c=this.ctx=new C();
+    this.master=c.createGain(); this.master.gain.value=this.vol; this.master.connect(c.destination);
+
+    // looping noise bed
+    const len=c.sampleRate*2, buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+    let last=0;
+    for(let i=0;i<len;i++){const w=Math.random()*2-1; last=(last+0.02*w)/1.02; d[i]=last*3.2;}
+    const src=c.createBufferSource(); src.buffer=buf; src.loop=true;
+    const lp=c.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=5200;
+    const hp=c.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=220;
+    this.staticG=c.createGain(); this.staticG.gain.value=0.03;
+    src.connect(hp); hp.connect(lp); lp.connect(this.staticG); this.staticG.connect(this.master);
+    src.start(); this.noiseSrc=src;
+
+    // mains hum 60/120
+    this.humG=c.createGain(); this.humG.gain.value=0.028; this.humG.connect(this.master);
+    [60,120,180].forEach((f,i)=>{const o=c.createOscillator();o.type="sawtooth";o.frequency.value=f;
+      const g=c.createGain(); g.gain.value=[0.5,0.28,0.1][i];
+      const flt=c.createBiquadFilter(); flt.type="lowpass"; flt.frequency.value=400;
+      o.connect(g);g.connect(flt);flt.connect(this.humG);o.start();});
+
+    // anomaly drone (silent until needed)
+    this.droneG=c.createGain(); this.droneG.gain.value=0; this.droneG.connect(this.master);
+    const o=c.createOscillator(); o.type="sawtooth"; o.frequency.value=42;
+    const o2=c.createOscillator(); o2.type="sine"; o2.frequency.value=63.5;
+    const f=c.createBiquadFilter(); f.type="lowpass"; f.frequency.value=260;
+    o.connect(f);o2.connect(f);f.connect(this.droneG);o.start();o2.start();
+    this.droneOsc=o;
+    this.on=true;
+  },
+  resume(){ if(this.ctx&&this.ctx.state==="suspended")this.ctx.resume(); },
+  setVol(v){ this.vol=v; if(this.master)this.master.gain.value=v; },
+  ramp(node,v,t){ if(!this.ctx)return; const g=node.gain;
+    g.cancelScheduledValues(this.ctx.currentTime);
+    g.setValueAtTime(g.value,this.ctx.currentTime);
+    g.linearRampToValueAtTime(v,this.ctx.currentTime+t); },
+  env(type,freq,dur,vol,sweepTo,q){
+    if(!this.on)return; const c=this.ctx,t=c.currentTime;
+    const o=c.createOscillator(); o.type=type; o.frequency.setValueAtTime(freq,t);
+    if(sweepTo)o.frequency.exponentialRampToValueAtTime(Math.max(20,sweepTo),t+dur);
+    const g=c.createGain(); g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(vol,t+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    let node=o;
+    if(q){const f=c.createBiquadFilter();f.type="bandpass";f.frequency.value=freq;f.Q.value=q;o.connect(f);node=f;}
+    node.connect(g); g.connect(this.master); o.start(t); o.stop(t+dur+0.05);
+  },
+  burst(dur,vol,f0,f1){
+    if(!this.on)return; const c=this.ctx,t=c.currentTime;
+    const n=c.createBufferSource(); const len=(c.sampleRate*dur)|0;
+    const b=c.createBuffer(1,len,c.sampleRate),d=b.getChannelData(0);
+    for(let i=0;i<len;i++)d[i]=(Math.random()*2-1);
+    n.buffer=b;
+    const f=c.createBiquadFilter(); f.type="bandpass"; f.Q.value=1.1;
+    f.frequency.setValueAtTime(f0,t); f.frequency.exponentialRampToValueAtTime(f1,t+dur);
+    const g=c.createGain(); g.gain.setValueAtTime(vol,t);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    n.connect(f);f.connect(g);g.connect(this.master); n.start(t);
+  },
+  click(){ this.env("square",900,0.045,0.09,420); },
+  good(){ this.env("triangle",660,0.16,0.16,1320); this.env("sine",990,0.3,0.09,1980); },
+  bad(){ this.env("sawtooth",150,0.28,0.15,70,4); this.burst(0.18,0.1,900,180); },
+  buy(){ this.env("square",520,0.07,0.09,780); setTimeout(()=>this.env("square",780,0.08,0.08,1100),55); },
+  warn(){ this.env("sine",440,0.5,0.11,440); setTimeout(()=>this.env("sine",370,0.5,0.11,370),260); },
+  scare(){
+    if(!this.on)return; this.burst(0.9,0.5,4200,90);
+    this.env("sawtooth",720,1.1,0.32,55,3);
+    this.env("square",311,0.7,0.16,44);
+    setTimeout(()=>this.burst(0.5,0.22,1800,120),160);
+  },
+  ring(){ this.env("sine",1000,0.35,0.1,1000); setTimeout(()=>this.env("sine",1230,0.35,0.1,1230),20); },
+  boxNote(f){ this.env("triangle",f,0.5,0.07,f); this.env("sine",f*2,0.35,0.03,f*2); },
+  setStatic(v){ if(this.staticG)this.ramp(this.staticG,v,0.15); },
+  setDrone(v,f){ if(this.droneG)this.ramp(this.droneG,v,0.3);
+    if(f&&this.droneOsc)this.droneOsc.frequency.linearRampToValueAtTime(f,this.ctx.currentTime+0.4); }
+};
+
+/* ============================================================================
+   2. DATA
+   ========================================================================= */
+const PRODUCERS=[
+ {id:"rabbit", nm:"RABBIT EARS",     cost:15,     mul:1.15, sig:0.6,    reach:0.010, ds:"Bent coat hanger. Somehow it works."},
+ {id:"dipole", nm:"DIPOLE ARRAY",    cost:190,    mul:1.16, sig:4.2,    reach:0.070, ds:"Roof-mounted. Hums in the rain."},
+ {id:"vhf",    nm:"VHF MAST",        cost:2.4e3,  mul:1.17, sig:26,     reach:0.42,  ds:"Red beacon. Nobody climbs it twice."},
+ {id:"relay",  nm:"MICROWAVE RELAY", cost:31e3,   mul:1.18, sig:170,    reach:2.6,   ds:"Line of sight to the next dead town."},
+ {id:"head",   nm:"CABLE HEADEND",   cost:410e3,  mul:1.19, sig:1.1e3,  reach:16,    ds:"Copper into every living room."},
+ {id:"sat",    nm:"SATELLITE UPLINK",cost:5.8e6,  mul:1.20, sig:7.4e3,  reach:105,   ds:"Bounce it off something in orbit."},
+ {id:"ghost",  nm:"GHOST REPEATER",  cost:92e6,   mul:1.21, sig:52e3,   reach:720,   ds:"Rebroadcasts what was never sent."},
+ {id:"mirror", nm:"ORBITAL MIRROR",  cost:1.5e9,  mul:1.22, sig:400e3,  reach:5.4e3, ds:"The whole hemisphere can see the picture."},
+ {id:"dead",   nm:"DEAD CHANNEL 0",  cost:3.1e10, mul:1.23, sig:3.4e6,  reach:42e3,  ds:"A frequency with no license and no end."},
+ {id:"choir",  nm:"THE CHOIR",       cost:9.0e11, mul:1.24, sig:31e6,   reach:340e3, ds:"They were the night shift, once."}
+];
+
+const UPGRADES=[
+ {id:"ferrite",  nm:"FERRITE CORE",       cost:900,   ds:"+1.2s to every banish window.",           req:()=>true},
+ {id:"preheat",  nm:"TUBE PREHEAT",       cost:6.5e3, ds:"Signal output +30%.",                     req:()=>true},
+ {id:"phosphor", nm:"PHOSPHOR MASK",      cost:2.6e4, ds:"Anomalies telegraph 0.9s longer.",        req:()=>S.stats.banished>=3},
+ {id:"autocue",  nm:"AUTO-CUE",           cost:1.6e5, ds:"Wrong-button penalty halved.",            req:()=>S.stats.wrong>=3},
+ {id:"halide",   nm:"SILVER HALIDE",      cost:9.0e5, ds:"Subscriber gain +60%.",                   req:()=>true},
+ {id:"failsafe", nm:"FAILSAFE RELAY",     cost:6.0e6, ds:"Dread bleeds off twice as fast.",         req:()=>S.stats.banished>=12},
+ {id:"watch",    nm:"NIGHT WATCH",        cost:5.0e7, ds:"14% chance an anomaly banishes itself.",  req:()=>S.rp>=1},
+ {id:"lead",     nm:"LEAD LINING",        cost:4.0e8, ds:"Jumpscares steal half as much.",          req:()=>S.stats.scared>=1},
+ {id:"comp",     nm:"SIGNAL COMPRESSOR",  cost:3.0e9, ds:"Signal output +120%.",                    req:()=>true},
+ {id:"cam2",     nm:"SECOND CAMERA",      cost:2.2e10,ds:"The correct key lights up on the deck.",  req:()=>S.stats.banished>=60},
+ {id:"vault",    nm:"TAPE VAULT",         cost:1.4e11,ds:"Offline signal accrual while tab is away.",req:()=>S.rp>=5},
+ {id:"halo",     nm:"CARRIER HALO",       cost:8.0e11,ds:"Subscribers can no longer be stolen.",    req:()=>S.stats.scared>=6}
+];
+
+const COUNTERS=[
+ {id:"tone",    nm:"TONE",     key:"1", ds:"Emergency test tone. 1000 Hz, straight through everything."},
+ {id:"bars",    nm:"BARS",     key:"2", ds:"SMPTE colour bars. Something in them is comforting."},
+ {id:"vhold",   nm:"V-HOLD",   key:"3", ds:"Locks the vertical sync. Stops the picture rolling."},
+ {id:"degauss", nm:"DEGAUSS",  key:"4", ds:"Wipes the shadow mask clean with a magnetic snap."},
+ {id:"cut",     nm:"CUT",      key:"5", ds:"Kills the feed to black. Nothing goes out, nothing comes in."},
+ {id:"tape",    nm:"TAPE",     key:"6", ds:"Rolls fresh footage from the vault."},
+ {id:"pattern", nm:"PATTERN",  key:"7", ds:"Broadcasts the sign-off card and station ident."},
+ {id:"hook",    nm:"OFF-HOOK", key:"8", ds:"Lifts the studio line. Leaves it open."}
+];
+
+/* --- the eight things in the signal --- */
+const ANOM=[
+ {id:"snow", nm:"THE SNOW CRAWLER", counter:"degauss", cls:"CLASS I — GRAIN-BORNE", tier:0,
+  tell:"The static thickens until it is no longer random. A face assembles out of the grain, one frame at a time, and it does not blink.",
+  lore:"First logged 3 Nov 1979 by operator R. Vance, who described it as \"the snow deciding to be somebody.\" It lives in the noise floor itself, so cutting the feed only gives it a darker room to stand in.",
+  method:"Snap the shadow mask with a full DEGAUSS. The magnetic wipe scatters the grain before it can finish assembling a face.",
+  wrongNote:"CUT is the common mistake. It feeds on the dark."},
+
+ {id:"sleep", nm:"MR. SLEEPWELL", counter:"cut", cls:"CLASS II — RESIDENT MASCOT", tier:0,
+  tell:"The picture whitens to a hospital brightness. The station's old bedtime puppet leans into frame, grinning, and a music box starts somewhere behind the wall.",
+  lore:"KBLK-7's mascot from the 1968 children's block. The puppet was destroyed on air. It has been coming back to work ever since, always at the end of the shift, always to say goodnight.",
+  method:"CUT the feed. He is a performer — with no audience and no light he has no reason to stay.",
+  wrongNote:"Never answer him with BARS or PATTERN. He takes it as applause."},
+
+ {id:"vert", nm:"THE VERTICAL MAN", counter:"vhold", cls:"CLASS II — SYNC PARASITE", tier:0,
+  tell:"The picture rolls. In the tear band between frames, for a fraction of a second, something far too tall is standing in the studio.",
+  lore:"He exists only in the seam between one frame and the next, which is why nobody has ever photographed him. He is getting taller. The 1981 log has him at four frames. He is now nine.",
+  method:"Lock the sync with V-HOLD. Close the seam and there is nowhere left for him to be.",
+  wrongNote:"Do not DEGAUSS a rolling picture. It widens the tear."},
+
+ {id:"dead", nm:"DEAD AIR", counter:"tone", cls:"CLASS III — ABSENCE", tier:1,
+  tell:"Everything stops. No picture, no grain, no hum — a silence so total your ears invent things to fill it. One flat green line crosses the screen.",
+  lore:"Not an intruder. An appetite. Dead Air is what is left when the signal is removed, and it will keep removing until there is nothing on the frequency at all, including you.",
+  method:"Put something in the silence. The 1000 Hz emergency TONE is the loudest simple thing the desk can make.",
+  wrongNote:"Every silent option (CUT, TAPE) makes the hole bigger."},
+
+ {id:"card", nm:"THE TEST CARD GIRL", counter:"bars", cls:"CLASS III — REVENANT", tier:1,
+  tell:"Colour bars bleed in from the edges, wrong and oversaturated. A child sits centre frame with a chalk-drawn face and a clown that is not a clown.",
+  lore:"She was on the sign-off card from 1971 to 1984. When the card was retired she had nowhere to be, and she has been trying to get back into it ever since. She is not hostile. She is homesick.",
+  method:"Show her the way home. Broadcast BARS and she will step back into the card on her own.",
+  wrongNote:"CUT strands her in the dark and she will scream about it."},
+
+ {id:"rerun", nm:"THE RERUN", counter:"tape", cls:"CLASS IV — LOOP", tier:1,
+  tell:"The image smears into ghost trails. A figure crosses the studio, snaps back, crosses again. The audio echoes a half-second behind itself.",
+  lore:"A four-second loop of tape that was never erased, playing since 1976. Whatever was recorded in those four seconds is still happening. It will overwrite anything you transmit with itself.",
+  method:"Give the machine something else to play. Roll fresh TAPE and the loop is broken by new footage.",
+  wrongNote:"Anything live — TONE, BARS, PATTERN — just gets absorbed into the loop."},
+
+ {id:"niel", nm:"THE NIELSEN", counter:"pattern", cls:"CLASS IV — AUDITOR", tier:2,
+  tell:"Columns of numbers scroll where the picture should be. A man in a grey suit stands with a clipboard. His head is a bar chart, and it is falling.",
+  lore:"He audits. He arrives when the numbers are good and leaves with a portion of them. He does not acknowledge staff, threats, or the fire axe kept in Studio B.",
+  method:"He requires a valid station ident to close the audit. Broadcast the sign-off PATTERN and he files and departs.",
+  wrongNote:"He steals subscribers, not signal. Left alone he takes a great deal."},
+
+ {id:"call", nm:"THE CALLER", counter:"hook", cls:"CLASS V — CONTACT", tier:2,
+  tell:"The studio line rings — every line, at once. An oscilloscope trace fills the screen and speaks. The figure behind it holds a receiver to a head that is only a rotary dial.",
+  lore:"It has been trying to reach this station for fifty-one years. It is not calling for you. It is calling for whoever had the shift before you, and it will keep dialling until somebody picks up.",
+  method:"Take it OFF-HOOK and leave the line open. It only needs to be answered, not spoken to.",
+  wrongNote:"Do not CUT the call. It redials angrier, and faster."}
+];
+const ANOM_BY={}; ANOM.forEach(a=>ANOM_BY[a.id]=a);
+
+/* ============================================================================
+   3. STATE
+   ========================================================================= */
+const SAVEKEY="finalbroadcast.v1";
+let S=null;
+function freshState(){
+  return {
+    sig:0, subs:0, rp:0, lifetimeSubs:0,
+    prod:{}, ups:{}, seen:{},
+    night:1, airtime:0, dread:0,
+    stats:{banished:0, wrong:0, scared:0, perfect:0, streak:0, bestStreak:0, ads:0},
+    sponsorEnd:0, sponsorCd:0, revives:0,
+    flash:true, sfx:0.7, lastSave:Date.now(),
+    started:false, tab:"tx", manPage:"snow"
+  };
+}
+function save(){ try{ S.lastSave=Date.now(); localStorage.setItem(SAVEKEY,JSON.stringify(S)); }catch(e){} }
+function load(){
+  try{ const r=localStorage.getItem(SAVEKEY); if(!r)return null;
+    const o=JSON.parse(r); const f=freshState();
+    return Object.assign(f,o,{stats:Object.assign(f.stats,o.stats||{})});
+  }catch(e){ return null; }
+}
+S=load()||freshState();
+PRODUCERS.forEach(p=>{ if(S.prod[p.id]==null)S.prod[p.id]=0; });
+// Timed buffs do not survive the tab being closed — they are only decremented by the
+// running loop, so a save taken mid-sponsor would otherwise restore a permanent x3
+// (and inflate the offline TAPE VAULT grant, which is computed from sigRate()).
+S.sponsorEnd=0; S.sponsorCd=0;
+AU.vol=S.sfx;
+
+/* --- derived economy --- */
+function costOf(p){ return p.cost*Math.pow(p.mul,S.prod[p.id]||0); }
+function bulkCost(p,n){ const c=costOf(p); return c*(Math.pow(p.mul,n)-1)/(p.mul-1); }
+function maxAfford(p){
+  const c=costOf(p); if(S.sig<c)return 0;
+  return Math.max(1,Math.floor(Math.log(1+(S.sig/c)*(p.mul-1))/Math.log(p.mul)));
+}
+function subMult(){ return 1+Math.pow(Math.max(0,S.subs),0.42)*0.05; }
+function rpMult(){ return 1+S.rp*0.08; }
+function sponsorMult(){ return S.sponsorEnd>0?3:1; }
+function sigMult(){
+  let m=subMult()*rpMult()*sponsorMult();
+  if(S.ups.preheat)m*=1.3; if(S.ups.comp)m*=2.2;
+  return m;
+}
+function sigRate(){
+  let base=0; for(const p of PRODUCERS)base+=(S.prod[p.id]||0)*p.sig;
+  return base*sigMult();
+}
+function subRate(){
+  let base=0; for(const p of PRODUCERS)base+=(S.prod[p.id]||0)*p.reach;
+  let m=rpMult()*sponsorMult(); if(S.ups.halide)m*=1.6;
+  m*=1+Math.min(1.5,S.stats.streak*0.03);
+  return base*m;
+}
+function rpGain(){ return Math.floor(Math.pow(S.lifetimeSubs/1e4,0.5)); }
+
+/* --- difficulty --- */
+function depth(){ return S.stats.banished+S.stats.scared*2; }
+function anomInterval(){
+  const d=depth();
+  let base=Math.max(11,27-d*0.35);
+  if(S.ups.failsafe)base+=1;
+  return base*rr(0.78,1.25);
+}
+function banishWindow(){
+  const d=depth();
+  let w=Math.max(3.0,6.6-d*0.045);
+  if(S.ups.ferrite)w+=1.2;
+  return w;
+}
+function telegraph(){ return (S.ups.phosphor?2.5:1.6); }
+function unlockedAnoms(){
+  const d=depth();
+  return ANOM.filter(a=> a.tier===0 || (a.tier===1&&d>=6) || (a.tier===2&&d>=16));
+}
+
+/* ============================================================================
+   4. ANOMALY RUNTIME
+   ========================================================================= */
+const A={
+  active:null,     // {def, t, window, masked, stage, id}
+  nextAt:20,
+  warn:0,          // telegraph countdown
+  warnDef:null,
+  shake:0, flash:0, glitch:0,
+  scare:0, scareDef:null,
+  banishFx:0, wrongFx:0,
+  lost:false
+};
+
+function scheduleNext(){ A.nextAt=anomInterval(); }
+function beginWarn(){
+  const pool=unlockedAnoms();
+  A.warnDef=pick(pool);
+  A.warn=telegraph();
+  AU.warn();
+  toast("⚠ CARRIER DISTURBANCE","bad");
+}
+function manifest(){
+  const def=A.warnDef||pick(unlockedAnoms());
+  A.warnDef=null; A.warn=0;
+  const d=depth();
+  const masked = d>=28 && Math.random()<0.22;
+  A.active={def, t:0, window:banishWindow()*(S.seen[def.id]?1:1.6), masked, stage:masked?0:1};
+  if(!S.seen[def.id]){ S.seen[def.id]=true; toast("NEW ENTRY LOGGED — "+def.nm,"gold");
+    setTimeout(()=>toast("PRESS M TO READ THE MANUAL","gold"),900); }
+  AU.setStatic(0.14); AU.setDrone(0.18, 38+Math.random()*18);
+  A.glitch=1;
+  if(def.id==="call")AU.ring();
+  if(def.id==="sleep")[880,784,659,587].forEach((f,i)=>setTimeout(()=>AU.boxNote(f),i*280));
+  if(def.id==="dead"){AU.setStatic(0.0);AU.setDrone(0.02,30);}
+  // night watch auto-banish
+  if(S.ups.watch&&Math.random()<0.14){
+    setTimeout(()=>{ if(A.active&&A.active.def===def){ toast("NIGHT WATCH HANDLED IT","good"); resolve(true,true); } },600);
+  }
+}
+function pressCounter(cid){
+  AU.click();
+  if(!A.active){ flashKey(cid,"bad"); return; }
+  const a=A.active;
+  if(a.masked&&a.stage===0){
+    if(cid==="cut"){ a.stage=1; a.t=Math.max(0,a.t-0.6); flashKey(cid,"good");
+      toast("MASK STRIPPED — NOW COUNTER IT","gold"); AU.env("square",300,0.1,0.1,600); return; }
+    wrongPress(cid); return;
+  }
+  if(cid===a.def.counter){ flashKey(cid,"good"); resolve(true,false); }
+  else wrongPress(cid);
+}
+function wrongPress(cid){
+  flashKey(cid,"bad"); AU.bad();
+  S.stats.wrong++; A.wrongFx=1;
+  const pen=S.ups.autocue?0.45:0.9;
+  A.active.t+=pen; A.shake=Math.max(A.shake,6);
+  S.dread=Math.min(100,S.dread+3);
+}
+function resolve(success,silent){
+  const a=A.active; if(!a)return;
+  A.active=null; A.glitch=0;
+  AU.setStatic(0.03); AU.setDrone(0,42);
+  if(success){
+    S.stats.banished++; S.stats.streak++;
+    S.stats.bestStreak=Math.max(S.stats.bestStreak,S.stats.streak);
+    const fast=a.t<a.window*0.4;
+    if(fast)S.stats.perfect++;
+    const bonus=sigRate()*(fast?18:9);
+    S.sig+=bonus;
+    A.banishFx=1; S.dread=Math.max(0,S.dread-6);
+    if(!silent)AU.good();
+    toast((fast?"CLEAN KILL — ":"BANISHED — ")+a.def.nm+"  +"+fmt(bonus)+" SIG"+
+      (S.stats.streak>2?"   ×"+S.stats.streak+" STREAK":""),"good");
+  }
+  scheduleNext();
+}
+function jumpscare(){
+  const a=A.active; if(!a)return;
+  const def=a.def;
+  A.active=null; A.glitch=0;
+  A.scare=1.5; A.scareDef=def; A.shake=26; A.flash=1;
+  AU.scare(); AU.setStatic(0.22); AU.setDrone(0,42);
+  setTimeout(()=>{AU.setStatic(0.03);},1400);
+
+  S.stats.scared++; S.stats.streak=0;
+  const half=S.ups.lead?0.5:1;
+  let lostSig=0,lostSub=0;
+  if(def.id==="niel"){
+    lostSub=S.ups.halo?0:S.subs*0.28*half; S.subs-=lostSub;
+    lostSig=S.sig*0.10*half; S.sig-=lostSig;
+  }else if(def.id==="dead"){
+    lostSig=S.sig*0.55*half; S.sig-=lostSig;
+  }else{
+    lostSig=S.sig*0.32*half; S.sig-=lostSig;
+    lostSub=S.ups.halo?0:S.subs*0.08*half; S.subs-=lostSub;
+  }
+  S.sig=Math.max(0,S.sig); S.subs=Math.max(0,S.subs);
+  S.dread=Math.min(100,S.dread+26);
+  toast("✖ "+def.nm+" GOT THROUGH — −"+fmt(lostSig)+" SIG"+(lostSub>1?" / −"+fmt(lostSub)+" SUBS":""),"bad");
+  scheduleNext();
+  if(S.dread>=100)signalLost();
+}
+
+/* ============================================================================
+   5. SIGNAL LOST / REVIVE / SIGN OFF
+   ========================================================================= */
+function signalLost(){
+  if(A.lost)return; A.lost=true; A.active=null;
+  AU.setStatic(0.3); AU.setDrone(0.25,26);
+  const rg=rpGain();
+  $("#lostBody").innerHTML=
+    "<p>The dread meter is full. Every monitor in the building is showing the same room, and it is <b>this</b> one.</p>"+
+    "<p>NIGHT "+S.night+" &nbsp;·&nbsp; AIRTIME "+mmss(S.airtime)+" &nbsp;·&nbsp; BANISHED "+S.stats.banished+
+    " &nbsp;·&nbsp; BEST STREAK "+S.stats.bestStreak+"</p>"+
+    "<p>An <b>emergency sponsor</b> will buy the rest of the hour — watch the spot and the dread resets to a survivable level, "+
+    "everything you own stays yours. This will be revive <b>#"+(S.revives+1)+"</b> tonight.</p>"+
+    "<p style='color:#8a7070'>Or sign off: bank <b>"+fmt(rg)+" ratings point"+(rg===1?"":"s")+
+    "</b> (permanent ×"+(1+ (S.rp+rg)*0.08).toFixed(2)+" to everything), lose the transmitters, start NIGHT "+(S.night+1)+".</p>";
+  $("#reviveBtn").textContent="EMERGENCY SPONSOR — STAY ON AIR";
+  $("#acceptBtn").textContent = rg>0 ? ("SIGN OFF — BANK "+fmt(rg)+" RP") : "SIGN OFF (0 RP)";
+  openModal("modalLost");
+}
+function revive(){
+  closeModal("modalLost");
+  playAd(()=>{
+    S.revives++; S.dread=45; A.lost=false;
+    S.sponsorEnd=Math.max(S.sponsorEnd,45); scheduleNext();
+    AU.setStatic(0.03); AU.setDrone(0,42);
+    toast("SPONSOR SECURED — BACK ON AIR","gold");
+  },"EMERGENCY SPONSORSHIP");
+}
+function signOff(){
+  closeModal("modalLost");
+  const g=rpGain();
+  S.rp+=g; S.night++; S.sig=0; S.subs=0; S.lifetimeSubs=0;
+  PRODUCERS.forEach(p=>S.prod[p.id]=0);
+  S.dread=0; S.airtime=0; S.revives=0; A.lost=false; A.active=null;
+  S.stats.streak=0;
+  // a new night starts clean: signalLost() left the static bed and drone wound up,
+  // and a telegraphed anomaly may still have been pending
+  A.warn=0; A.warnDef=null; A.scare=0; A.scareDef=null; A.shake=0; A.flash=0; A.glitch=0;
+  S.sponsorEnd=0; S.sponsorCd=0;
+  AU.setStatic(0.03); AU.setDrone(0,42);
+  scheduleNext(); save();
+  toast("SIGNED OFF — +"+fmt(g)+" RP — NIGHT "+S.night+" BEGINS","gold");
+  renderRack();
+}
+
+/* ============================================================================
+   6. SPONSOR / AD BREAK  (in-game commercial, no external anything)
+   ========================================================================= */
+const ADS=[
+ {t:"SLEEPWELL BRAND", s:"NIGHT TONIC", l:"\"ONE SPOONFUL AND THE DREAMS STOP.\"", c:"#ffd166"},
+ {t:"VANCE & SON",     s:"AERIAL FITTING", l:"WE CLIMB SO YOU DON'T HAVE TO.", c:"#57e6ff"},
+ {t:"MERIDIAN CATHODE",s:"PICTURE TUBES",  l:"A WARMER BLACK. A DEEPER DARK.", c:"#6dff9a"},
+ {t:"THE 11 O'CLOCK",  s:"NEWS AT ELEVEN", l:"IF YOU ARE WATCHING, YOU ARE FINE.", c:"#ff6b6b"},
+ {t:"HALLOWED FOODS",  s:"TV DINNERS",     l:"EAT IN FRONT OF IT. IT PREFERS THAT.", c:"#c9a0ff"}
+];
+let adRun=null;
+function playAd(done,label){
+  const ad=pick(ADS);
+  $("#adLabel").textContent=label||"PAID PROGRAMMING";
+  $("#adSkip").disabled=true; $("#adSkip").textContent="SKIP IN 5";
+  openModal("modalAd");
+  adRun={ad,t:0,dur:6.5,done};
+  AU.env("square",523,0.12,0.08,523);
+  setTimeout(()=>AU.env("square",659,0.12,0.08,659),140);
+  setTimeout(()=>AU.env("square",784,0.3,0.08,784),280);
+}
+function adTick(dt){
+  if(!adRun)return;
+  adRun.t+=dt;
+  const left=Math.ceil(5-adRun.t);
+  if(adRun.t>=5){ $("#adSkip").disabled=false; $("#adSkip").textContent="CONTINUE"; }
+  else $("#adSkip").textContent="SKIP IN "+left;
+  drawAd(adRun.ad,adRun.t);
+  if(adRun.t>=adRun.dur)endAd();
+}
+function endAd(){
+  if(!adRun)return; const d=adRun.done; adRun=null;
+  closeModal("modalAd"); S.stats.ads++;
+  if(d)d();
+}
+function takeSponsor(){
+  if(S.sponsorCd>0||S.sponsorEnd>0)return;
+  playAd(()=>{
+    S.sponsorEnd=60; S.sponsorCd=150;
+    toast("SPONSORED SEGMENT — ×3 OUTPUT FOR 60s","gold");
+    AU.env("triangle",440,0.2,0.14,880);
+  },"SPONSORED SEGMENT");
+}
+
+const adC=$("#adCanvas"), adX=adC.getContext("2d");
+function drawAd(ad,t){
+  const w=adC.width,h=adC.height,g=adX;
+  g.fillStyle="#05070a"; g.fillRect(0,0,w,h);
+  // rolling gradient bg
+  const gr=g.createLinearGradient(0,0,0,h);
+  gr.addColorStop(0,"#0b1424"); gr.addColorStop(1,"#160a14"); g.fillStyle=gr; g.fillRect(0,0,w,h);
+  // spinning sunburst
+  g.save(); g.translate(w/2,h*0.46); g.rotate(t*0.6);
+  for(let i=0;i<16;i++){ g.rotate(TAU/16);
+    g.fillStyle=i%2?"rgba(255,255,255,.035)":"rgba(255,255,255,.012)";
+    g.beginPath(); g.moveTo(0,0); g.arc(0,0,340,0,TAU/16); g.fill(); }
+  g.restore();
+  // product box
+  const bob=Math.sin(t*3)*6;
+  g.save(); g.translate(w/2,h*0.44+bob);
+  g.fillStyle="rgba(0,0,0,.5)"; g.fillRect(-92,-62,184,124);
+  g.strokeStyle=ad.c; g.lineWidth=3; g.strokeRect(-92,-62,184,124);
+  g.fillStyle=ad.c; g.font="bold 19px 'Courier New',monospace"; g.textAlign="center";
+  g.fillText(ad.t,0,-22);
+  g.fillStyle="#fff"; g.font="bold 27px 'Courier New',monospace"; g.fillText(ad.s,0,14);
+  g.fillStyle="rgba(255,255,255,.6)"; g.font="10px 'Courier New',monospace";
+  g.fillText("★ ★ ★ ★ ★",0,42);
+  g.restore();
+  // tagline typewriter
+  const n=Math.min(ad.l.length,Math.floor(t*22));
+  g.fillStyle="#e8f2ef"; g.font="13px 'Courier New',monospace"; g.textAlign="center";
+  g.fillText(ad.l.slice(0,n),w/2,h-56);
+  g.fillStyle="rgba(255,255,255,.35)"; g.font="9px 'Courier New',monospace";
+  g.fillText("A KBLK-7 SPONSORED MESSAGE",w/2,h-26);
+  // scanlines + grain
+  g.fillStyle="rgba(0,0,0,.28)";
+  for(let y=0;y<h;y+=3)g.fillRect(0,y,w,1);
+  g.globalAlpha=0.06; g.drawImage(noiseTiles[(t*22|0)%noiseTiles.length],0,0,w,h); g.globalAlpha=1;
+  if(Math.random()<0.05){ g.fillStyle="rgba(255,255,255,.08)"; g.fillRect(0,Math.random()*h,w,rr(2,10)); }
+}
+
+/* ============================================================================
+   7. CANVAS SCENE
+   ========================================================================= */
+const cv=$("#scene"), X=cv.getContext("2d");
+X.imageSmoothingEnabled=false;
+
+// pre-baked noise tiles
+const noiseTiles=[];
+(function(){
+  for(let k=0;k<8;k++){
+    const c=document.createElement("canvas"); c.width=180;c.height=135;
+    const x=c.getContext("2d"); const im=x.createImageData(180,135); const d=im.data;
+    for(let i=0;i<d.length;i+=4){ const v=(Math.random()*255)|0; d[i]=d[i+1]=d[i+2]=v; d[i+3]=255; }
+    x.putImageData(im,0,0); noiseTiles.push(c);
+  }
+})();
+
+// the broadcast feed (low res for chunky pixels)
+const FW=320,FH=240;
+const feed=document.createElement("canvas"); feed.width=FW; feed.height=FH;
+const F=feed.getContext("2d"); F.imageSmoothingEnabled=false;
+const trail=document.createElement("canvas"); trail.width=FW; trail.height=FH;
+const T=trail.getContext("2d");
+
+// scene geometry (fixed — the camera never moves)
+const ROOM={x:0,y:0,w:940,h:720};
+const WALL={x:120,y:82,w:700,h:486};             // back wall rect
+const CRT ={x:238,y:126,w:466,h:330};            // main monitor bezel
+const SCR ={x:CRT.x+22,y:CRT.y+20,w:CRT.w-44,h:CRT.h-52};
+const SIDE=[{x:132,y:150},{x:132,y:296},{x:712,y:150},{x:712,y:296}]; // 96x74 each
+const SW=96,SH=74;
+
+let tGlobal=0;
+
+/* ---------- feed content ---------- */
+function drawFeedNormal(t){
+  F.fillStyle="#04120a"; F.fillRect(0,0,FW,FH);
+  // horizon glow
+  const g=F.createRadialGradient(FW/2,FH*0.55,10,FW/2,FH*0.55,190);
+  g.addColorStop(0,"rgba(20,90,50,.55)"); g.addColorStop(1,"rgba(2,10,6,0)");
+  F.fillStyle=g; F.fillRect(0,0,FW,FH);
+
+  // slow-panning transmitter silhouette
+  const px=(t*7)%(FW+140)-70;
+  F.fillStyle="#02170d";
+  F.beginPath(); F.moveTo(0,FH); F.lineTo(0,168);
+  for(let i=0;i<=FW;i+=16)F.lineTo(i,168+Math.sin((i+t*8)*0.05)*7+Math.sin(i*0.013)*10);
+  F.lineTo(FW,FH); F.closePath(); F.fill();
+  F.strokeStyle="rgba(80,200,130,.5)"; F.lineWidth=1;
+  F.beginPath(); F.moveTo(px,176); F.lineTo(px-9,FH-24); F.moveTo(px,176); F.lineTo(px+9,FH-24);
+  for(let y=190;y<FH-24;y+=16){const s=(y-176)/(FH-200)*9; F.moveTo(px-s,y);F.lineTo(px+s,y);}
+  F.stroke();
+  const bl=(Math.sin(t*3)*0.5+0.5);
+  F.fillStyle="rgba(255,60,40,"+(0.35+bl*0.65)+")"; F.fillRect(px-2,172,4,4);
+
+  // waveform of current output
+  const rate=sigRate();
+  F.strokeStyle="rgba(120,255,170,.8)"; F.lineWidth=1; F.beginPath();
+  for(let i=0;i<FW;i++){
+    const a=Math.sin((i*0.09)+t*4)*10 + Math.sin(i*0.31+t*7)*4*Math.min(1,rate/50+0.2);
+    if(i===0)F.moveTo(i,52+a); else F.lineTo(i,52+a);
+  }
+  F.stroke();
+
+  // station ident text
+  F.fillStyle="rgba(190,255,215,.92)"; F.font="bold 15px 'Courier New',monospace"; F.textAlign="center";
+  F.fillText("KBLK-7",FW/2,26);
+  F.font="8px 'Courier New',monospace"; F.fillStyle="rgba(150,220,180,.7)";
+  F.fillText("NOW BROADCASTING · NIGHT "+S.night,FW/2,38);
+
+  // ticker
+  const tick="  SIGNAL "+fmt(S.sig)+"   SUBSCRIBERS "+fmt(S.subs)+"   OUTPUT "+fmt(rate)+"/s   STREAK "+S.stats.streak+" ";
+  F.font="9px 'Courier New',monospace"; F.textAlign="left";
+  const tw=F.measureText(tick).width; const off=-((t*34)%tw);
+  F.fillStyle="rgba(0,0,0,.55)"; F.fillRect(0,FH-20,FW,14);
+  F.fillStyle="rgba(190,255,215,.85)";
+  for(let i=0;i<3;i++)F.fillText(tick,off+i*tw,FH-10);
+
+  if(S.sponsorEnd>0){
+    F.fillStyle="rgba(255,179,71,.9)"; F.font="bold 9px 'Courier New',monospace"; F.textAlign="right";
+    F.fillText("◆ SPONSORED ×3  "+Math.ceil(S.sponsorEnd)+"s",FW-6,FH-40);
+  }
+}
+
+/* ---------- the eight ---------- */
+function bodySil(g,x,y,s,col){ // generic standing figure; y is the ground line
+  g.fillStyle=col;
+  g.beginPath(); g.ellipse(x,y-64*s,11*s,13*s,0,0,TAU); g.fill();        // head
+  g.beginPath(); g.moveTo(x-15*s,y-14*s); g.lineTo(x-11*s,y-50*s);
+  g.lineTo(x+11*s,y-50*s); g.lineTo(x+15*s,y-14*s); g.closePath(); g.fill(); // torso
+  g.fillRect(x-12*s,y-16*s,8*s,16*s); g.fillRect(x+4*s,y-16*s,8*s,16*s);  // legs
+  g.fillRect(x-20*s,y-46*s,6*s,26*s); g.fillRect(x+14*s,y-46*s,6*s,26*s); // arms
+}
+function drawAnom(g,def,t,prog){
+  switch(def.id){
+
+  case "snow": {
+    g.fillStyle="#000"; g.fillRect(0,0,FW,FH);
+    g.globalAlpha=0.95; g.drawImage(noiseTiles[(t*24|0)%8],0,0,FW,FH); g.globalAlpha=1;
+    // face carved out of the grain by darkening around it
+    g.save();
+    g.globalCompositeOperation="multiply";
+    const cx=FW/2, cy=FH/2-6, s=1+prog*0.25;
+    const grd=g.createRadialGradient(cx,cy,10,cx,cy,120);
+    grd.addColorStop(0,"rgba(255,255,255,1)"); grd.addColorStop(1,"rgba(40,40,40,1)");
+    g.fillStyle=grd; g.fillRect(0,0,FW,FH);
+    g.restore();
+    g.save(); g.globalAlpha=clamp(prog*1.5,0,0.92);
+    g.fillStyle="#000";
+    // skull-ish: eyes + mouth as dark voids
+    const cx2=FW/2, cy2=FH/2-6;
+    g.beginPath(); g.ellipse(cx2-26,cy2-10,13,17,0.15,0,TAU); g.fill();
+    g.beginPath(); g.ellipse(cx2+26,cy2-10,13,17,-0.15,0,TAU); g.fill();
+    g.beginPath(); g.ellipse(cx2,cy2+16,6,9,0,0,TAU); g.fill();
+    g.beginPath(); g.ellipse(cx2,cy2+44,30,10+prog*8,0,0,TAU); g.fill();
+    // white pinpricks
+    g.globalAlpha=clamp(prog*1.6,0,1); g.fillStyle="#fff";
+    g.fillRect(cx2-28+Math.sin(t*3)*2,cy2-10,3,3); g.fillRect(cx2+24+Math.sin(t*3)*2,cy2-10,3,3);
+    g.restore();
+    break; }
+
+  case "sleep": {
+    g.fillStyle="#e8e2d0"; g.fillRect(0,0,FW,FH);
+    const w=1-prog*0.25;
+    g.fillStyle="rgba(255,255,255,"+(0.35+prog*0.4)+")"; g.fillRect(0,0,FW,FH);
+    const sway=Math.sin(t*1.6)*10, lean=prog*26;
+    g.save(); g.translate(FW/2+sway, FH*0.62+lean); g.scale(1+prog*0.35,1+prog*0.35);
+    // body / suit
+    g.fillStyle="#3a2b53";
+    g.beginPath(); g.moveTo(-46,120); g.lineTo(-30,10); g.lineTo(30,10); g.lineTo(46,120); g.closePath(); g.fill();
+    // bowtie
+    g.fillStyle="#c8213a";
+    g.beginPath(); g.moveTo(0,6); g.lineTo(-20,-4); g.lineTo(-20,16); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(0,6); g.lineTo(20,-4); g.lineTo(20,16); g.closePath(); g.fill();
+    // head
+    g.fillStyle="#f0d7b0"; g.beginPath(); g.ellipse(0,-38,44,50,0,0,TAU); g.fill();
+    g.strokeStyle="#8a6a44"; g.lineWidth=2; g.stroke();
+    // hinged jaw line
+    g.beginPath(); g.moveTo(-40,-24); g.lineTo(-14,-6); g.moveTo(40,-24); g.lineTo(14,-6); g.stroke();
+    // eyes — dead, painted
+    g.fillStyle="#fff"; g.beginPath(); g.ellipse(-16,-50,11,13,0,0,TAU); g.fill();
+    g.beginPath(); g.ellipse(16,-50,11,13,0,0,TAU); g.fill();
+    g.fillStyle="#111";
+    const ex=Math.sin(t*0.9)*3;
+    g.beginPath(); g.arc(-16+ex,-48,5.5,0,TAU); g.fill();
+    g.beginPath(); g.arc(16+ex,-48,5.5,0,TAU); g.fill();
+    // grin
+    g.strokeStyle="#a01828"; g.lineWidth=4; g.beginPath();
+    g.arc(0,-24,24,0.15*Math.PI,0.85*Math.PI); g.stroke();
+    for(let i=-3;i<=3;i++){ g.beginPath(); g.moveTo(i*7,-24+Math.cos(i*0.35)*0+22-Math.abs(i)*1.4);
+      g.lineTo(i*7,-24+16-Math.abs(i)*1.4); g.stroke(); }
+    g.restore();
+    // vignette + "GOODNIGHT"
+    g.fillStyle="rgba(0,0,0,"+(0.10)+")"; g.fillRect(0,0,FW,FH);
+    g.fillStyle="rgba(60,30,60,"+(0.5+Math.sin(t*4)*0.3)+")";
+    g.font="bold 17px 'Courier New',monospace"; g.textAlign="center";
+    g.fillText("GOODNIGHT, OPERATOR",FW/2,30);
+    break; }
+
+  case "vert": {
+    const roll=(t*150)%FH;
+    g.fillStyle="#050807"; g.fillRect(0,0,FW,FH);
+    // rolled programme — a lit studio floor, so the roll is obvious
+    for(const oy of [-FH,0]){
+      g.save(); g.translate(0,roll+oy);
+      const gg=g.createLinearGradient(0,0,0,FH);
+      gg.addColorStop(0,"#16281f"); gg.addColorStop(0.55,"#0d1c15"); gg.addColorStop(1,"#050d09");
+      g.fillStyle=gg; g.fillRect(0,0,FW,FH);
+      g.strokeStyle="rgba(120,220,170,.20)"; g.lineWidth=1;
+      for(let i=0;i<FW;i+=24){g.beginPath();g.moveTo(i,0);g.lineTo(i,FH);g.stroke();}
+      for(let j=140;j<FH;j+=26){g.beginPath();g.moveTo(0,j);g.lineTo(FW,j);g.stroke();}
+      g.fillStyle="rgba(140,240,190,.30)"; g.fillRect(30,96,54,44); g.fillRect(232,104,50,36);
+      g.restore();
+    }
+    // tear band — blown-out white, he stands inside the seam
+    const bandH=18+prog*46, bandY=roll-bandH*0.5;
+    g.save(); g.beginPath(); g.rect(0,bandY,FW,bandH); g.clip();
+    g.fillStyle="#d8e4de"; g.fillRect(0,bandY,FW,bandH);
+    g.globalAlpha=0.45; g.drawImage(noiseTiles[(t*30|0)%8],0,bandY,FW,bandH); g.globalAlpha=1;
+    const hx=FW/2+Math.sin(t*0.7)*30;
+    const hr=Math.min(15,bandH*0.30), hy=bandY+bandH*0.40;
+    g.fillStyle="#040705";
+    g.beginPath(); g.ellipse(hx,hy,hr*0.78,hr,0,0,TAU); g.fill();     // head, inside the seam
+    g.fillRect(hx-hr*0.55,hy+hr*0.7,hr*1.1,340);                      // impossible torso
+    g.fillRect(hx-58,hy+hr*1.5,52,5); g.fillRect(hx+6,hy+hr*1.5,52,5);// arms that reach the frame edge
+    g.fillStyle="rgba(255,250,235,.95)";
+    g.fillRect(hx-hr*0.42,hy-hr*0.18,2.4,3); g.fillRect(hx+hr*0.16,hy-hr*0.18,2.4,3);
+    g.restore();
+    // seam edges
+    g.strokeStyle="rgba(255,255,255,"+(0.5+prog*0.4)+")"; g.lineWidth=1.5;
+    g.beginPath(); g.moveTo(0,bandY); g.lineTo(FW,bandY);
+    g.moveTo(0,bandY+bandH); g.lineTo(FW,bandY+bandH); g.stroke();
+    // faint after-image of him outside the seam
+    g.globalAlpha=0.10+prog*0.12; g.fillStyle="#000";
+    g.fillRect(hx-10,bandY+12,20,320); g.globalAlpha=1;
+    break; }
+
+  case "dead": {
+    g.fillStyle="#000"; g.fillRect(0,0,FW,FH);
+    // flatline
+    g.strokeStyle="rgba(80,255,140,"+(0.75-prog*0.3)+")"; g.lineWidth=1.6;
+    g.beginPath(); g.moveTo(0,FH/2); g.lineTo(FW,FH/2); g.stroke();
+    // faint face emerging
+    g.save(); g.globalAlpha=prog*0.5;
+    const cx=FW/2,cy=FH/2;
+    g.strokeStyle="rgba(140,200,170,1)"; g.lineWidth=1;
+    g.beginPath(); g.ellipse(cx,cy-4,54,68,0,0,TAU); g.stroke();
+    g.beginPath(); g.ellipse(cx-20,cy-16,9,5,0,0,TAU); g.stroke();
+    g.beginPath(); g.ellipse(cx+20,cy-16,9,5,0,0,TAU); g.stroke();
+    g.beginPath(); g.moveTo(cx-16,cy+30); g.lineTo(cx+16,cy+30); g.stroke();
+    g.restore();
+    g.fillStyle="rgba(90,140,110,"+(0.3+Math.sin(t*2)*0.15)+")";
+    g.font="9px 'Courier New',monospace"; g.textAlign="center";
+    g.fillText("— NO CARRIER —",FW/2,FH-30);
+    break; }
+
+  case "card": {
+    // SMPTE bars
+    const cols=["#c0c0c0","#c0c000","#00c0c0","#00c000","#c000c0","#c00000","#0000c0"];
+    const bw=FW/7;
+    for(let i=0;i<7;i++){ g.fillStyle=cols[i]; g.fillRect(i*bw,0,bw+1,FH*0.72); }
+    g.fillStyle="#101018"; g.fillRect(0,FH*0.72,FW,FH*0.28);
+    const sub=["#0000c0","#fff","#c000c0","#101018"];
+    for(let i=0;i<4;i++){g.fillStyle=sub[i];g.fillRect(i*(FW/4),FH*0.72,FW/4+1,FH*0.10);}
+    // bleed / oversaturate
+    g.globalCompositeOperation="screen";
+    g.fillStyle="rgba(255,80,140,"+(0.06+prog*0.14)+")"; g.fillRect(0,0,FW,FH);
+    g.globalCompositeOperation="source-over";
+    // the girl
+    g.save(); g.translate(FW/2, FH*0.52+Math.sin(t*1.1)*3);
+    g.fillStyle="rgba(0,0,0,.72)";
+    g.beginPath(); g.moveTo(-34,72); g.lineTo(-22,-6); g.lineTo(22,-6); g.lineTo(34,72); g.closePath(); g.fill();
+    g.fillStyle="#f2e6d8"; g.beginPath(); g.ellipse(0,-32,28,32,0,0,TAU); g.fill();
+    // chalk face
+    g.strokeStyle="#3a3a3a"; g.lineWidth=2;
+    g.beginPath(); g.moveTo(-14,-40); g.lineTo(-4,-30); g.moveTo(-4,-40); g.lineTo(-14,-30); g.stroke();
+    g.beginPath(); g.moveTo(4,-40); g.lineTo(14,-30); g.moveTo(14,-40); g.lineTo(4,-30); g.stroke();
+    g.beginPath(); g.arc(0,-18,10,0.1*Math.PI,0.9*Math.PI); g.stroke();
+    // clown that is not a clown
+    g.save(); g.translate(30,26); g.rotate(0.3+Math.sin(t*2)*0.05);
+    g.fillStyle="#d84a4a"; g.beginPath(); g.arc(0,0,15,0,TAU); g.fill();
+    g.fillStyle="#111"; g.beginPath(); g.arc(-5,-3,2.6,0,TAU); g.fill();
+    g.beginPath(); g.arc(5,-3,2.6,0,TAU); g.fill();
+    g.strokeStyle="#111"; g.lineWidth=1.6; g.beginPath(); g.arc(0,4,7,Math.PI,TAU); g.stroke();
+    g.restore(); g.restore();
+    if(Math.sin(t*6)>0.7){ g.fillStyle="rgba(255,255,255,.12)"; g.fillRect(0,0,FW,FH); }
+    break; }
+
+  case "rerun": {
+    // persistent trail buffer — slow decay so the smear actually reads
+    T.globalCompositeOperation="source-over";
+    T.fillStyle="rgba(2,7,5,0.055)"; T.fillRect(0,0,FW,FH);
+    const loop=(t*0.9)%4;
+    const fx=26+(loop/4)*(FW-52);
+    const fy=FH*0.66+Math.sin(loop*Math.PI*2)*5;
+    bodySil(T,fx,fy,0.95,"rgba(170,255,210,.42)");
+    if(loop<0.06){ T.fillStyle="rgba(2,7,5,1)"; T.fillRect(0,0,FW,FH); } // hard cut on loop point
+
+    g.fillStyle="#03100b"; g.fillRect(0,0,FW,FH);
+    // floor line so it reads as a room, not a void
+    g.strokeStyle="rgba(90,190,140,.25)"; g.lineWidth=1;
+    g.beginPath(); g.moveTo(0,FH*0.70); g.lineTo(FW,FH*0.70); g.stroke();
+    g.drawImage(trail,0,0);
+    // echoed heads — the same moment, three times
+    g.globalAlpha=0.30; g.drawImage(trail,-14,2); g.drawImage(trail,13,-2); g.globalAlpha=1;
+    // the solid, current one
+    bodySil(g,fx,fy,0.95,"rgba(200,255,225,.92)");
+    g.fillStyle="#03100b";
+    g.fillRect(fx-6,fy-66*0.95,3,3); g.fillRect(fx+3,fy-66*0.95,3,3);
+
+    g.fillStyle="rgba(120,255,180,.8)"; g.font="9px 'Courier New',monospace"; g.textAlign="left";
+    g.fillText("REC  00:0"+Math.floor(loop)+";"+String(Math.floor((loop%1)*30)).padStart(2,"0"),8,16);
+    g.fillStyle="rgba(255,60,40,.9)"; g.beginPath(); g.arc(FW-14,13,4,0,TAU); g.fill();
+    if(loop<0.15){ g.fillStyle="rgba(255,255,255,"+(0.22+prog*0.28)+")"; g.fillRect(0,0,FW,FH); }
+    break; }
+
+  case "niel": {
+    g.fillStyle="#05060a"; g.fillRect(0,0,FW,FH);
+    g.font="bold 11px 'Courier New',monospace"; g.textAlign="left";
+    for(let c=0;c<8;c++){
+      const off=((t*(40+c*11))%16);
+      for(let r=-1;r<17;r++){
+        const y=r*16+off;
+        g.fillStyle="rgba(130,255,180,"+(0.30+((c+r)%3)*0.22)+")";
+        g.fillText(((seedNum(c*97+r*13+((t*2)|0))%9000)+1000).toString(),c*40+6,y);
+      }
+    }
+    g.fillStyle="rgba(0,0,0,.18)"; g.fillRect(0,0,FW,FH);
+    // auditor — a hole punched in the numbers
+    g.save(); g.translate(FW/2,FH*0.56+Math.sin(t*0.8)*2);
+    g.fillStyle="#0a0b0e";
+    g.beginPath(); g.moveTo(-40,90); g.lineTo(-28,-10); g.lineTo(28,-10); g.lineTo(40,90); g.closePath(); g.fill();
+    g.strokeStyle="rgba(150,255,190,.30)"; g.lineWidth=1;
+    g.beginPath(); g.moveTo(-40,90); g.lineTo(-28,-10); g.lineTo(28,-10); g.lineTo(40,90); g.stroke();
+    g.fillStyle="#16181d"; g.fillRect(-5,-10,10,64);
+    // clipboard
+    g.fillStyle="#8a7a52"; g.fillRect(24,10,26,34); g.fillStyle="#e8e4d8"; g.fillRect(27,14,20,26);
+    // bar-chart head
+    g.fillStyle="#d8d4c8";
+    const bars=[34,28,22,15,9,4];
+    for(let i=0;i<bars.length;i++){
+      const bh=bars[i]*(1-prog*0.5);
+      g.fillStyle="rgba(230,226,214,"+(0.9-i*0.1)+")";
+      g.fillRect(-33+i*11,-14-bh,9,bh);
+    }
+    g.strokeStyle="rgba(255,70,60,.9)"; g.lineWidth=2; g.beginPath();
+    g.moveTo(-34,-46); g.lineTo(32,-14); g.stroke();
+    g.restore();
+    g.fillStyle="rgba(255,80,70,.85)"; g.font="bold 11px 'Courier New',monospace"; g.textAlign="center";
+    g.fillText("AUDIT IN PROGRESS",FW/2,24);
+    break; }
+
+  case "call": {
+    g.fillStyle="#04060a"; g.fillRect(0,0,FW,FH);
+    // scope grid
+    g.strokeStyle="rgba(60,120,160,.2)"; g.lineWidth=1;
+    for(let i=0;i<=FW;i+=32){g.beginPath();g.moveTo(i,0);g.lineTo(i,FH);g.stroke();}
+    for(let j=0;j<=FH;j+=30){g.beginPath();g.moveTo(0,j);g.lineTo(FW,j);g.stroke();}
+    // speaking waveform
+    g.strokeStyle="rgba(90,230,255,.95)"; g.lineWidth=1.6; g.beginPath();
+    for(let i=0;i<FW;i++){
+      const env=Math.abs(Math.sin(t*2.1+i*0.004))*(0.4+prog*0.8);
+      const a=Math.sin(i*0.14+t*11)*26*env + Math.sin(i*0.42+t*23)*9*env;
+      i?g.lineTo(i,FH*0.36+a):g.moveTo(i,FH*0.36+a);
+    }
+    g.stroke();
+    // dial-head figure
+    g.save(); g.translate(FW/2,FH*0.70);
+    g.fillStyle="#03080c";
+    g.beginPath(); g.moveTo(-34,70); g.lineTo(-24,-8); g.lineTo(24,-8); g.lineTo(34,70); g.closePath(); g.fill();
+    g.strokeStyle="rgba(90,230,255,.55)"; g.lineWidth=1.6;
+    g.beginPath(); g.moveTo(-34,70); g.lineTo(-24,-8); g.lineTo(24,-8); g.lineTo(34,70); g.stroke();
+    // rotary dial head
+    g.save(); g.translate(0,-38);
+    g.fillStyle="#0a1218"; g.beginPath(); g.arc(0,0,28,0,TAU); g.fill();
+    g.strokeStyle="rgba(120,240,255,.8)"; g.lineWidth=2; g.stroke();
+    g.rotate(Math.sin(t*1.4)*0.6);
+    for(let i=0;i<10;i++){
+      const a=-1.9+i*0.42;
+      g.fillStyle="rgba(120,240,255,"+(0.35+0.5*Math.abs(Math.sin(t*3+i)))+")";
+      g.beginPath(); g.arc(Math.cos(a)*18,Math.sin(a)*18,3.4,0,TAU); g.fill();
+    }
+    g.restore();
+    // receiver arm
+    g.strokeStyle="rgba(90,230,255,.8)"; g.lineWidth=5; g.lineCap="round";
+    g.beginPath(); g.moveTo(22,4); g.lineTo(34,-30); g.stroke();
+    g.fillStyle="#0d1a22"; g.fillRect(28,-42,14,16);
+    g.restore();
+    if(Math.sin(t*7)>0){ g.fillStyle="rgba(90,230,255,.06)"; g.fillRect(0,0,FW,FH); }
+    g.fillStyle="rgba(120,240,255,.9)"; g.font="bold 11px 'Courier New',monospace"; g.textAlign="center";
+    g.fillText("LINE 1 · LINE 2 · LINE 3 · ALL",FW/2,20);
+    break; }
+  }
+}
+function seedNum(n){ n=(n*2654435761)>>>0; return n%10000; }
+
+/* ---------- feed compositor ---------- */
+function renderFeed(t){
+  const a=A.active;
+  if(a){
+    const prog=a.t/a.window;
+    drawAnom(F,a.def,t,prog);
+    if(a.masked&&a.stage===0){
+      F.fillStyle="rgba(0,0,0,.55)"; F.fillRect(0,0,FW,FH);
+      F.globalAlpha=0.5; F.drawImage(noiseTiles[(t*30|0)%8],0,0,FW,FH); F.globalAlpha=1;
+      F.fillStyle="rgba(255,255,255,.75)"; F.font="bold 12px 'Courier New',monospace"; F.textAlign="center";
+      F.fillText("◼ MASKED CARRIER ◼",FW/2,FH/2);
+      F.font="9px 'Courier New',monospace"; F.fillStyle="rgba(255,180,180,.8)";
+      F.fillText("CUT TO REVEAL",FW/2,FH/2+16);
+    }
+    // rising static as the window closes
+    if(a.def.id!=="dead"){
+      F.globalAlpha=0.06+prog*0.20;
+      F.drawImage(noiseTiles[(t*26|0)%8],0,0,FW,FH); F.globalAlpha=1;
+    }
+  } else if(A.scare>0 && A.scareDef){
+    // jumpscare frame
+    F.fillStyle="#000"; F.fillRect(0,0,FW,FH);
+    F.save(); const z=1.28+clamp(1.5-A.scare,0,1.5)*0.85;
+    F.translate(FW/2,FH*0.44); F.scale(z,z); F.translate(-FW/2,-FH*0.44);
+    drawAnom(F,A.scareDef,t,1);
+    F.restore();
+    F.globalAlpha=0.42; F.drawImage(noiseTiles[(t*40|0)%8],0,0,FW,FH); F.globalAlpha=1;
+    F.save(); F.globalCompositeOperation="multiply";
+    const rv=F.createRadialGradient(FW/2,FH/2,40,FW/2,FH/2,190);
+    rv.addColorStop(0,"rgba(255,255,255,1)"); rv.addColorStop(1,"rgba(255,60,50,1)");
+    F.fillStyle=rv; F.fillRect(0,0,FW,FH); F.restore();
+    if(A.scare>1.28){ F.fillStyle="rgba(255,255,255,"+clamp((A.scare-1.28)*4,0,1)+")"; F.fillRect(0,0,FW,FH); }
+  } else if(A.lost){
+    F.fillStyle="#000"; F.fillRect(0,0,FW,FH);
+    F.globalAlpha=0.9; F.drawImage(noiseTiles[(t*40|0)%8],0,0,FW,FH); F.globalAlpha=1;
+  } else {
+    drawFeedNormal(t);
+    if(A.warn>0){
+      F.globalAlpha=0.10+Math.sin(t*30)*0.06;
+      F.drawImage(noiseTiles[(t*30|0)%8],0,0,FW,FH); F.globalAlpha=1;
+      if(Math.sin(t*24)>0.4){ F.fillStyle="rgba(255,255,255,.10)"; F.fillRect(0,rr(0,FH),FW,rr(2,14)); }
+    }
+    if(A.banishFx>0){
+      F.fillStyle="rgba(140,255,190,"+(A.banishFx*0.35)+")"; F.fillRect(0,0,FW,FH);
+    }
+  }
+  // permanent scanlines in the feed
+  F.fillStyle="rgba(0,0,0,.22)";
+  for(let y=0;y<FH;y+=2)F.fillRect(0,y,FW,1);
+}
+
+/* ---------- room ---------- */
+function drawRoom(t){
+  const g=X;
+  // walls (fixed perspective box)
+  g.fillStyle="#05070700";
+  const L=0,R=ROOM.w,TP=0,B=ROOM.h;
+  const w=WALL;
+  // floor
+  g.fillStyle="#0a0d0e";
+  g.beginPath(); g.moveTo(L,B); g.lineTo(R,B); g.lineTo(w.x+w.w,w.y+w.h); g.lineTo(w.x,w.y+w.h); g.fill();
+  // ceiling
+  g.fillStyle="#080a0b";
+  g.beginPath(); g.moveTo(L,TP); g.lineTo(R,TP); g.lineTo(w.x+w.w,w.y); g.lineTo(w.x,w.y); g.fill();
+  // left / right walls
+  g.fillStyle="#0c1011";
+  g.beginPath(); g.moveTo(L,TP); g.lineTo(w.x,w.y); g.lineTo(w.x,w.y+w.h); g.lineTo(L,B); g.fill();
+  g.fillStyle="#070a0b";
+  g.beginPath(); g.moveTo(R,TP); g.lineTo(w.x+w.w,w.y); g.lineTo(w.x+w.w,w.y+w.h); g.lineTo(R,B); g.fill();
+  // back wall
+  const bg=g.createLinearGradient(0,w.y,0,w.y+w.h);
+  bg.addColorStop(0,"#141a1b"); bg.addColorStop(1,"#0a0e0f");
+  g.fillStyle=bg; g.fillRect(w.x,w.y,w.w,w.h);
+  // acoustic foam texture
+  g.strokeStyle="rgba(255,255,255,.018)"; g.lineWidth=1;
+  for(let x=w.x;x<w.x+w.w;x+=18){g.beginPath();g.moveTo(x,w.y);g.lineTo(x,w.y+w.h);g.stroke();}
+  for(let y=w.y;y<w.y+w.h;y+=18){g.beginPath();g.moveTo(w.x,y);g.lineTo(w.x+w.w,y);g.stroke();}
+  // floor grid receding
+  g.strokeStyle="rgba(120,180,170,.05)";
+  for(let i=1;i<10;i++){ const p=i/10;
+    g.beginPath(); g.moveTo(lerp(L,w.x,p),lerp(B,w.y+w.h,p)); g.lineTo(lerp(R,w.x+w.w,p),lerp(B,w.y+w.h,p)); g.stroke(); }
+  // corner edges
+  g.strokeStyle="rgba(255,255,255,.05)"; g.lineWidth=1; g.strokeRect(w.x+.5,w.y+.5,w.w,w.h);
+  drawWallProps(t);
+  // flickering ceiling tube
+  const fl=(Math.sin(t*13)*0.5+0.5)*(Math.random()<0.03?0.25:1);
+  const cl=g.createLinearGradient(ROOM.w/2,0,ROOM.w/2,300);
+  cl.addColorStop(0,"rgba(180,220,230,"+(0.05*fl)+")"); cl.addColorStop(1,"rgba(180,220,230,0)");
+  g.fillStyle=cl; g.beginPath(); g.moveTo(300,0); g.lineTo(640,0); g.lineTo(560,300); g.lineTo(380,300); g.fill();
+  g.fillStyle="rgba(200,235,240,"+(0.16*fl)+")"; g.fillRect(392,4,156,7);
+}
+
+/* left-wall door in perspective + the fittings on the back wall */
+function wallPt(u,v){ // u = depth (0 = screen edge, 1 = back wall), v = height
+  const tx=lerp(0,WALL.x,u), ty=lerp(0,WALL.y,u);
+  const bx=lerp(0,WALL.x,u), by=lerp(ROOM.h,WALL.y+WALL.h,u);
+  return [lerp(tx,bx,v), lerp(ty,by,v)];
+}
+function drawWallProps(t){
+  const g=X, w=WALL;
+
+  /* ---- the door in the left wall ---- */
+  const d=[wallPt(0.34,0.20),wallPt(0.70,0.26),wallPt(0.70,0.90),wallPt(0.34,0.94)];
+  g.fillStyle="#05080a"; g.beginPath(); g.moveTo(d[0][0],d[0][1]);
+  for(let i=1;i<4;i++)g.lineTo(d[i][0],d[i][1]); g.closePath(); g.fill();
+  g.strokeStyle="rgba(160,190,190,.10)"; g.lineWidth=2; g.stroke();
+  // it is never quite shut
+  const gap=[wallPt(0.62,0.27),wallPt(0.70,0.26),wallPt(0.70,0.90),wallPt(0.62,0.92)];
+  const dark=(A.warn>0||S.dread>55);
+  g.fillStyle=dark?"rgba(30,6,6,.95)":"rgba(0,0,0,.95)";
+  g.beginPath(); g.moveTo(gap[0][0],gap[0][1]);
+  for(let i=1;i<4;i++)g.lineTo(gap[i][0],gap[i][1]); g.closePath(); g.fill();
+  if(dark){ // two points of light in the gap, and they are at head height
+    const [ex,ey]=wallPt(0.665,0.44);
+    g.fillStyle="rgba(255,190,180,"+(0.45+Math.sin(t*3)*0.25)+")";
+    g.fillRect(ex-3,ey,2,3); g.fillRect(ex+2,ey+1,2,3);
+  }
+  g.fillStyle="rgba(200,220,215,.14)";
+  const [hx,hy]=wallPt(0.655,0.60); g.fillRect(hx-3,hy,5,3);
+
+  /* ---- cable runs from the ceiling down behind the desk ---- */
+  g.strokeStyle="rgba(0,0,0,.55)"; g.lineWidth=3; g.lineCap="round";
+  for(let i=0;i<5;i++){
+    const cx=w.x+40+i*168, sag=16+i*4;
+    g.beginPath(); g.moveTo(cx,w.y);
+    g.bezierCurveTo(cx+10,w.y+30+sag,cx-14,w.y+52,cx-6,w.y+92); g.stroke();
+  }
+
+  /* ---- fittings band under the main monitor ---- */
+  const by=470;
+  // patch panel
+  g.fillStyle="#0d1113"; roundRect(g,w.x+34,by,232,52,3); g.fill();
+  g.strokeStyle="#222b2d"; g.lineWidth=1; g.stroke();
+  for(let r=0;r<2;r++)for(let c=0;c<12;c++){
+    g.fillStyle="#05080a"; g.beginPath();
+    g.arc(w.x+50+c*18,by+16+r*22,4.2,0,TAU); g.fill();
+    if((c*3+r*7)%5===0){ g.fillStyle="rgba(255,180,90,.5)";
+      g.beginPath(); g.arc(w.x+50+c*18,by+16+r*22,2,0,TAU); g.fill(); }
+  }
+  // studio clock — hands actually run on airtime
+  const cx=w.x+318, cy=by+26;
+  g.fillStyle="#0b0f10"; g.beginPath(); g.arc(cx,cy,23,0,TAU); g.fill();
+  g.strokeStyle="#2a3436"; g.lineWidth=2; g.stroke();
+  for(let i=0;i<12;i++){ const a=i*TAU/12;
+    g.fillStyle="rgba(180,210,205,.35)";
+    g.fillRect(cx+Math.cos(a)*18-1,cy+Math.sin(a)*18-1,2,2); }
+  const sec=(S.airtime%60)/60*TAU-Math.PI/2, min=(S.airtime%3600)/3600*TAU-Math.PI/2;
+  g.strokeStyle="rgba(200,225,220,.55)"; g.lineWidth=2; g.beginPath();
+  g.moveTo(cx,cy); g.lineTo(cx+Math.cos(min)*13,cy+Math.sin(min)*13); g.stroke();
+  g.strokeStyle="rgba(255,90,70,.8)"; g.lineWidth=1; g.beginPath();
+  g.moveTo(cx,cy); g.lineTo(cx+Math.cos(sec)*18,cy+Math.sin(sec)*18); g.stroke();
+  // ON AIR wall lamp
+  const live=!A.lost, hot=!!A.active;
+  g.fillStyle=hot?"#2a0806":live?"#1a0d06":"#0c0e0f";
+  roundRect(g,w.x+368,by+2,152,46,4); g.fill();
+  g.strokeStyle=hot?"#7a2018":live?"#4a3a18":"#222b2d"; g.lineWidth=2; g.stroke();
+  const lampA=hot?(0.7+Math.sin(t*9)*0.3):live?0.5:0.12;
+  g.fillStyle=hot?"rgba(255,90,70,"+lampA+")":"rgba(255,190,110,"+lampA+")";
+  g.font="bold 17px 'Courier New',monospace"; g.textAlign="center";
+  g.fillText(hot?"INTRUSION":"ON AIR",w.x+444,by+31);
+  if(live){ g.save(); g.globalCompositeOperation="lighter";
+    const lg=g.createRadialGradient(w.x+444,by+25,4,w.x+444,by+25,150);
+    lg.addColorStop(0,hot?"rgba(255,60,40,.22)":"rgba(255,160,60,.10)");
+    lg.addColorStop(1,"rgba(0,0,0,0)"); g.fillStyle=lg;
+    g.fillRect(w.x+280,by-110,340,220); g.restore(); }
+  // tape shelf
+  g.fillStyle="#0c1011"; g.fillRect(w.x+548,by,118,52);
+  g.strokeStyle="#222b2d"; g.strokeRect(w.x+548.5,by+.5,118,52);
+  for(let i=0;i<9;i++){
+    g.fillStyle=i%3===0?"#1c2426":"#141a1b";
+    g.fillRect(w.x+553+i*12,by+6,9,40);
+    g.fillStyle="rgba(200,220,215,.10)"; g.fillRect(w.x+553+i*12,by+11,9,2);
+  }
+}
+
+function drawSmallMonitors(t){
+  const g=X;
+  const feeds=["CAM 1 — HALLWAY","CAM 2 — MAST","CAM 3 — STUDIO B","CAM 4 — VAULT"];
+  for(let i=0;i<4;i++){
+    const m=SIDE[i];
+    g.fillStyle="#0b0e0f"; roundRect(g,m.x-5,m.y-5,SW+10,SH+16,4); g.fill();
+    g.strokeStyle="#1d2628"; g.lineWidth=1; g.stroke();
+    g.save(); g.beginPath(); g.rect(m.x,m.y,SW,SH); g.clip();
+    g.fillStyle="#040807"; g.fillRect(m.x,m.y,SW,SH);
+    const warnHot=A.warn>0||A.active;
+    // faux cam content
+    g.strokeStyle="rgba(90,180,150,"+(warnHot?0.35:0.22)+")";
+    g.lineWidth=1;
+    if(i===0){ g.beginPath(); g.moveTo(m.x,m.y+SH); g.lineTo(m.x+38,m.y+26); g.lineTo(m.x+58,m.y+26); g.lineTo(m.x+SW,m.y+SH); g.stroke(); }
+    if(i===1){ g.beginPath(); g.moveTo(m.x+SW/2,m.y+6); g.lineTo(m.x+SW/2-16,m.y+SH); g.moveTo(m.x+SW/2,m.y+6); g.lineTo(m.x+SW/2+16,m.y+SH);
+      for(let y=16;y<SH;y+=12){const s=(y/SH)*16;g.moveTo(m.x+SW/2-s,m.y+y);g.lineTo(m.x+SW/2+s,m.y+y);} g.stroke();
+      g.fillStyle="rgba(255,60,40,"+(0.4+Math.sin(t*3)*0.4)+")"; g.fillRect(m.x+SW/2-1,m.y+4,3,3); }
+    if(i===2){ g.strokeRect(m.x+14,m.y+30,SW-28,SH-42); g.beginPath(); g.moveTo(m.x+8,m.y+22); g.lineTo(m.x+SW-8,m.y+22); g.stroke(); }
+    if(i===3){ for(let k=0;k<4;k++)g.strokeRect(m.x+8+k*20,m.y+14,14,SH-26); }
+    // warning: something in the cams
+    if(A.warn>0 && (i===((t*3)|0)%4)){
+      const gy=m.y+SH-6;
+      bodySil(g,m.x+SW/2,gy,0.55,"rgba(0,0,0,.94)");
+      g.fillStyle="rgba(255,255,255,.75)";
+      g.fillRect(m.x+SW/2-4,gy-64*0.55,2,2); g.fillRect(m.x+SW/2+2,gy-64*0.55,2,2);
+    }
+    g.globalAlpha=warnHot?0.22:0.10;
+    g.drawImage(noiseTiles[(t*20+i*3|0)%8],m.x,m.y,SW,SH); g.globalAlpha=1;
+    g.fillStyle="rgba(0,0,0,.3)"; for(let y=0;y<SH;y+=2)g.fillRect(m.x,m.y+y,SW,1);
+    g.restore();
+    g.fillStyle=warnHot?"rgba(255,120,110,.85)":"rgba(120,160,155,.55)";
+    g.font="7px 'Courier New',monospace"; g.textAlign="left";
+    g.fillText(feeds[i],m.x,m.y+SH+9);
+  }
+}
+
+function roundRect(g,x,y,w,h,r){
+  g.beginPath();
+  g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r);
+  g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath();
+}
+
+function drawMainCRT(t){
+  const g=X;
+  // bezel
+  g.save();
+  g.shadowColor="rgba(0,0,0,.85)"; g.shadowBlur=28; g.shadowOffsetY=8;
+  const bz=g.createLinearGradient(0,CRT.y,0,CRT.y+CRT.h);
+  bz.addColorStop(0,"#2b3234"); bz.addColorStop(0.5,"#1a2022"); bz.addColorStop(1,"#0e1213");
+  g.fillStyle=bz; roundRect(g,CRT.x,CRT.y,CRT.w,CRT.h,12); g.fill();
+  g.restore();
+  g.strokeStyle="#3d4749"; g.lineWidth=1; roundRect(g,CRT.x+.5,CRT.y+.5,CRT.w-1,CRT.h-1,12); g.stroke();
+
+  // screen well
+  g.fillStyle="#000"; roundRect(g,SCR.x-4,SCR.y-4,SCR.w+8,SCR.h+8,8); g.fill();
+
+  // the picture
+  g.save();
+  roundRect(g,SCR.x,SCR.y,SCR.w,SCR.h,6); g.clip();
+  g.fillStyle="#000"; g.fillRect(SCR.x,SCR.y,SCR.w,SCR.h);
+
+  const a=A.active;
+  const glitch=A.glitch*(a?(0.3+a.t/a.window*0.7):0)+A.scare*0.6;
+  const jx=glitch>0?rr(-4,4)*glitch:0, jy=glitch>0?rr(-2,2)*glitch:0;
+
+  if(S.flash&&glitch>0.15&&Math.random()<0.35){
+    // RGB split
+    g.globalCompositeOperation="lighter";
+    g.globalAlpha=0.55;
+    g.drawImage(feed,SCR.x+jx-3*glitch,SCR.y+jy,SCR.w,SCR.h);
+    g.drawImage(feed,SCR.x+jx+3*glitch,SCR.y+jy,SCR.w,SCR.h);
+    g.globalAlpha=1; g.globalCompositeOperation="source-over";
+  }
+  g.drawImage(feed,SCR.x+jx,SCR.y+jy,SCR.w,SCR.h);
+
+  // horizontal tear slices
+  if(glitch>0.25&&S.flash){
+    const n=(glitch*5)|0;
+    for(let i=0;i<n;i++){
+      const sy=rr(0,SCR.h-6), sh=rr(3,16), off=rr(-22,22)*glitch;
+      g.drawImage(feed, 0,(sy/SCR.h)*FH, FW,(sh/SCR.h)*FH,
+                  SCR.x+off, SCR.y+sy, SCR.w, sh);
+    }
+  }
+  // rolling brightness bar (CRT refresh)
+  const rb=((t*90)%(SCR.h+120))-120;
+  const rg=g.createLinearGradient(0,SCR.y+rb,0,SCR.y+rb+120);
+  rg.addColorStop(0,"rgba(255,255,255,0)"); rg.addColorStop(0.5,"rgba(255,255,255,.035)");
+  rg.addColorStop(1,"rgba(255,255,255,0)");
+  g.fillStyle=rg; g.fillRect(SCR.x,SCR.y+rb,SCR.w,120);
+
+  // glass curvature vignette + reflection
+  const vg=g.createRadialGradient(SCR.x+SCR.w/2,SCR.y+SCR.h/2,SCR.h*0.28,
+                                  SCR.x+SCR.w/2,SCR.y+SCR.h/2,SCR.h*0.85);
+  vg.addColorStop(0,"rgba(0,0,0,0)"); vg.addColorStop(1,"rgba(0,0,0,.72)");
+  g.fillStyle=vg; g.fillRect(SCR.x,SCR.y,SCR.w,SCR.h);
+  const rf=g.createLinearGradient(SCR.x,SCR.y,SCR.x+SCR.w*0.6,SCR.y+SCR.h*0.6);
+  rf.addColorStop(0,"rgba(255,255,255,.045)"); rf.addColorStop(0.35,"rgba(255,255,255,0)");
+  g.fillStyle=rf; g.fillRect(SCR.x,SCR.y,SCR.w,SCR.h);
+  g.restore();
+
+  // phosphor bloom around the tube
+  if(a||A.scare>0){
+    const c=a?anomGlow(a.def.id):"rgba(255,40,30,";
+    g.save(); g.globalCompositeOperation="lighter";
+    const bl=g.createRadialGradient(SCR.x+SCR.w/2,SCR.y+SCR.h/2,SCR.h*0.4,
+                                    SCR.x+SCR.w/2,SCR.y+SCR.h/2,SCR.h*1.5);
+    const inten=(a?(0.10+a.t/a.window*0.18):0.3)*(a&&a.def.id==="dead"?0.4:1);
+    bl.addColorStop(0,c+inten+")"); bl.addColorStop(1,c+"0)");
+    g.fillStyle=bl; g.fillRect(0,0,ROOM.w,ROOM.h); g.restore();
+  }
+
+  // bezel furniture
+  g.fillStyle="#0a0d0e"; g.fillRect(CRT.x+18,CRT.y+CRT.h-26,CRT.w-36,14);
+  const hint=S.ups.cam2&&A.active&&!(A.active.masked&&A.active.stage===0);
+  if(hint){
+    const cc=COUNTERS.find(c=>c.id===A.active.def.counter);
+    g.fillStyle="rgba(109,255,154,.9)"; g.font="bold 9px 'Courier New',monospace"; g.textAlign="left";
+    g.fillText("SECOND CAMERA READS ▸ "+cc.nm+"  [KEY "+cc.key+"]",CRT.x+24,CRT.y+CRT.h-16);
+  }else{
+    g.fillStyle="rgba(180,220,215,.35)"; g.font="9px 'Courier New',monospace"; g.textAlign="left";
+    g.fillText("MERIDIAN CATHODE  ·  MODEL 7",CRT.x+24,CRT.y+CRT.h-16);
+  }
+  // power lamp
+  const on=!A.lost;
+  g.fillStyle=on?"rgba(90,255,150,.9)":"rgba(255,50,40,.9)";
+  g.beginPath(); g.arc(CRT.x+CRT.w-30,CRT.y+CRT.h-19,3.5,0,TAU); g.fill();
+
+  // ---- banish window ring around bezel ----
+  if(a){
+    const p=1-a.t/a.window;
+    g.save();
+    g.lineWidth=6; g.lineCap="butt";
+    g.strokeStyle="rgba(0,0,0,.6)";
+    roundRect(g,CRT.x-6,CRT.y-6,CRT.w+12,CRT.h+12,14); g.stroke();
+    const per=2*((CRT.w+12)+(CRT.h+12));
+    g.strokeStyle=p<0.3?"#ff3b30":p<0.6?"#ffb347":"#6dff9a";
+    g.shadowColor=g.strokeStyle; g.shadowBlur=14;
+    g.setLineDash([per*p,per]); g.lineDashOffset=0;
+    roundRect(g,CRT.x-6,CRT.y-6,CRT.w+12,CRT.h+12,14); g.stroke();
+    g.setLineDash([]); g.restore();
+    // name + countdown
+    g.textAlign="center"; g.font="bold 15px 'Courier New',monospace";
+    g.fillStyle="rgba(0,0,0,.75)"; g.fillRect(CRT.x,CRT.y-42,CRT.w,26);
+    g.fillStyle=p<0.3?"#ff5b50":"#ffd9a0";
+    g.fillText((a.masked&&a.stage===0?"◼ MASKED SIGNAL":a.def.nm)+"   "+(a.window-a.t).toFixed(1)+"s",
+      CRT.x+CRT.w/2,CRT.y-24);
+  } else if(A.warn>0){
+    g.textAlign="center"; g.font="bold 14px 'Courier New',monospace";
+    g.fillStyle="rgba(0,0,0,.7)"; g.fillRect(CRT.x,CRT.y-42,CRT.w,26);
+    g.fillStyle=Math.sin(tGlobal*22)>0?"#ff5b50":"#7a2a24";
+    g.fillText("⚠  CARRIER DISTURBANCE  ⚠",CRT.x+CRT.w/2,CRT.y-24);
+  }
+}
+function anomGlow(id){
+  return {snow:"rgba(200,200,210,", sleep:"rgba(255,220,150,", vert:"rgba(120,170,255,",
+   dead:"rgba(60,255,140,", card:"rgba(255,90,160,", rerun:"rgba(120,255,190,",
+   niel:"rgba(255,90,70,", call:"rgba(90,220,255,"}[id]||"rgba(255,255,255,";
+}
+
+function drawDesk(t){
+  const g=X;
+  // desk surface (foreground)
+  const dy=534;
+  const dg=g.createLinearGradient(0,dy,0,720);
+  dg.addColorStop(0,"#171d1e"); dg.addColorStop(0.16,"#232b2d"); dg.addColorStop(1,"#0b0e0f");
+  g.fillStyle=dg;
+  g.beginPath(); g.moveTo(WALL.x-30,dy); g.lineTo(WALL.x+WALL.w+30,dy);
+  g.lineTo(ROOM.w+40,720); g.lineTo(-40,720); g.closePath(); g.fill();
+  g.strokeStyle="rgba(255,255,255,.06)"; g.beginPath();
+  g.moveTo(WALL.x-30,dy+.5); g.lineTo(WALL.x+WALL.w+30,dy+.5); g.stroke();
+
+  // VU meters on the desk lip
+  const rate=sigRate(), rel=clamp(Math.log10(1+rate)/7,0,1);
+  for(let i=0;i<2;i++){
+    const vx=40+i*112, vy=548, vw=96, vh=44;
+    g.fillStyle="#0d1112"; roundRect(g,vx,vy,vw,vh,3); g.fill();
+    g.strokeStyle="#28312f"; g.stroke();
+    g.save(); g.translate(vx+vw/2,vy+vh-6);
+    g.strokeStyle="rgba(255,200,120,.25)"; g.lineWidth=1;
+    g.beginPath(); g.arc(0,0,30,Math.PI*1.15,Math.PI*1.85); g.stroke();
+    const v=clamp(rel+Math.sin(t*(7+i*3))*0.08+(A.active?0.25:0),0,1);
+    const ang=Math.PI*1.15+v*(Math.PI*0.7);
+    g.strokeStyle=v>0.82?"#ff5b50":"#ffcc88"; g.lineWidth=1.6;
+    g.beginPath(); g.moveTo(0,0); g.lineTo(Math.cos(ang)*28,Math.sin(ang)*28); g.stroke();
+    g.restore();
+    g.fillStyle="rgba(150,180,175,.4)"; g.font="7px 'Courier New',monospace"; g.textAlign="center";
+    g.fillText(i?"AUDIO":"CARRIER",vx+vw/2,vy+11);
+  }
+  // reel-to-reel
+  g.save(); g.translate(790,572);
+  g.fillStyle="#0d1112"; roundRect(g,-84,-24,168,52,4); g.fill();
+  g.strokeStyle="#28312f"; g.stroke();
+  for(let i=0;i<2;i++){
+    const rx=-40+i*80, spin=t*(A.active?5:1.6)*(i?-1:1);
+    g.save(); g.translate(rx,2); g.rotate(spin);
+    g.strokeStyle="rgba(180,210,205,.35)"; g.lineWidth=1.4;
+    g.beginPath(); g.arc(0,0,17,0,TAU); g.stroke();
+    for(let k=0;k<3;k++){ g.rotate(TAU/3); g.beginPath(); g.moveTo(0,0); g.lineTo(0,-15); g.stroke(); }
+    g.restore();
+    g.fillStyle="#1a2122"; g.beginPath(); g.arc(rx,2,4,0,TAU); g.fill();
+  }
+  g.restore();
+}
+
+/* ---------- full frame ---------- */
+function render(t){
+  const g=X;
+  g.setTransform(1,0,0,1,0,0);
+  g.fillStyle="#000"; g.fillRect(0,0,1280,720);
+
+  g.save();
+  if(A.shake>0.2){ g.translate(rr(-A.shake,A.shake),rr(-A.shake,A.shake)); }
+  g.beginPath(); g.rect(0,0,ROOM.w,ROOM.h); g.clip();
+  drawRoom(t);
+  drawSmallMonitors(t);
+  drawMainCRT(t);
+  drawDesk(t);
+
+  // room-wide dread tint
+  if(S.dread>25){
+    g.fillStyle="rgba(120,0,0,"+((S.dread-25)/75*0.16)+")"; g.fillRect(0,0,ROOM.w,ROOM.h);
+  }
+  // whole-room flash on scare
+  if(A.flash>0&&S.flash){ g.fillStyle="rgba(255,240,240,"+(A.flash*0.5)+")"; g.fillRect(0,0,ROOM.w,ROOM.h); }
+  // room grain
+  g.globalAlpha=0.035; g.drawImage(noiseTiles[(t*18|0)%8],0,0,ROOM.w,ROOM.h); g.globalAlpha=1;
+  // room vignette
+  const vg=g.createRadialGradient(ROOM.w/2,330,180,ROOM.w/2,330,640);
+  vg.addColorStop(0,"rgba(0,0,0,0)"); vg.addColorStop(1,"rgba(0,0,0,.85)");
+  g.fillStyle=vg; g.fillRect(0,0,ROOM.w,ROOM.h);
+  g.restore();
+
+  // rack ambient shadow strip
+  const sh=g.createLinearGradient(ROOM.w-30,0,ROOM.w,0);
+  sh.addColorStop(0,"rgba(0,0,0,0)"); sh.addColorStop(1,"rgba(0,0,0,.8)");
+  g.fillStyle=sh; g.fillRect(ROOM.w-30,0,30,720);
+}
+
+/* ============================================================================
+   8. UI
+   ========================================================================= */
+function toast(msg,kind){
+  const el=document.createElement("div");
+  el.className="toast"+(kind?" "+kind:""); el.textContent=msg;
+  const box=$("#toasts"); box.appendChild(el);
+  while(box.children.length>3)box.removeChild(box.firstChild);
+  setTimeout(()=>{ el.style.transition="opacity .4s"; el.style.opacity="0";
+    setTimeout(()=>el.remove(),420); },2600);
+}
+function openModal(id){ $("#"+id).classList.add("on"); }
+function closeModal(id){ $("#"+id).classList.remove("on"); }
+
+/* --- deck keys --- */
+const keyEls={};
+(function buildKeys(){
+  const box=$("#keys");
+  COUNTERS.forEach(c=>{
+    const b=document.createElement("button"); b.className="key";
+    b.innerHTML='<span class="kn">'+c.nm+'</span><span class="kk">KEY '+c.key+'</span>';
+    b.onclick=()=>{ AU.init();AU.resume(); pressCounter(c.id); };
+    box.appendChild(b); keyEls[c.id]=b;
+  });
+})();
+function flashKey(id,kind){
+  const el=keyEls[id]; if(!el)return;
+  el.classList.remove("good","bad"); void el.offsetWidth; el.classList.add(kind);
+  setTimeout(()=>el.classList.remove(kind),260);
+}
+
+/* --- rack --- */
+let buyMode=1;
+function renderRack(){
+  const body=$("#rackBody"); const tab=S.tab;
+  body.innerHTML="";
+  if(tab==="tx"){
+    const hd=document.createElement("div"); hd.className="hd";
+    hd.textContent="TRANSMISSION HARDWARE   ·   BUY x"+(buyMode===1?"1":buyMode===10?"10":"MAX");
+    hd.style.cursor="pointer";
+    hd.onclick=()=>{ buyMode=buyMode===1?10:buyMode===10?"max":1; renderRack(); };
+    body.appendChild(hd);
+    PRODUCERS.forEach((p,i)=>{
+      const owned=S.prod[p.id]||0;
+      const unlocked = i===0 || (S.prod[PRODUCERS[i-1].id]||0)>0 || S.sig>=p.cost*0.25;
+      // always show one locked tier ahead so the ladder is visible
+      const teased = !unlocked && (i===0 || (S.prod[PRODUCERS[i-1].id]||0)>0 ||
+        (i>0 && (S.prod[PRODUCERS[i-1].id]||0)===0 && S.sig>=PRODUCERS[i-1].cost*0.25));
+      if(!unlocked&&!teased)return;
+      if(!unlocked){
+        const el=document.createElement("div"); el.className="item locked"; el.dataset.locked="1";
+        el.innerHTML='<div class="row1"><span class="nm">'+p.nm+'</span><span class="ct">'+fmt(p.cost)+'</span></div>'+
+          '<div class="ds">Not yet within reach.</div>';
+        body.appendChild(el); return;
+      }
+      const n = buyMode==="max" ? Math.max(1,maxAfford(p)) : buyMode;
+      const c = bulkCost(p,n);
+      const el=document.createElement("div");
+      el.className="item"+(S.sig>=c?" afford":"");
+      el.dataset.pid=p.id;
+      el.innerHTML=
+        '<div class="row1"><span class="nm">'+p.nm+'</span><span class="ct">'+fmt(c)+'</span></div>'+
+        '<div class="ds">'+p.ds+'</div>'+
+        '<div class="st"><span>+'+fmt(p.sig*n*sigMult())+' sig/s</span><span>+'+fmt(p.reach*n)+' reach</span></div>'+
+        '<div class="qty">'+owned+'</div>';
+      el.onclick=()=>buy(p,n);
+      body.appendChild(el);
+    });
+  }
+  if(tab==="hw"){
+    const hd=document.createElement("div"); hd.className="hd"; hd.textContent="STATION EQUIPMENT · ONE-TIME";
+    body.appendChild(hd);
+    let any=false;
+    UPGRADES.forEach(u=>{
+      const owned=!!S.ups[u.id];
+      if(!owned&&!u.req())return;
+      any=true;
+      const el=document.createElement("div");
+      el.dataset.uid=u.id;
+      el.className="item"+(owned?" owned":(S.sig>=u.cost?" afford":""));
+      el.innerHTML='<div class="row1"><span class="nm">'+u.nm+'</span><span class="ct">'+
+        (owned?"INSTALLED":fmt(u.cost))+'</span></div><div class="ds">'+u.ds+'</div>';
+      if(!owned)el.onclick=()=>buyUp(u);
+      body.appendChild(el);
+    });
+    if(!any){ const n=document.createElement("div"); n.className="note";
+      n.textContent="No equipment available yet. Survive some anomalies and the catalogue opens up."; body.appendChild(n); }
+  }
+  if(tab==="st"){
+    const g=rpGain();
+    const hd=document.createElement("div"); hd.className="hd"; hd.textContent="SIGN-OFF";
+    body.appendChild(hd);
+    const n=document.createElement("div"); n.className="note";
+    n.innerHTML="Ending the broadcast wipes your transmitters and signal, and converts lifetime subscribers into "+
+      "<b style='color:#ffb347'>RATINGS POINTS</b> — a permanent ×"+(1+S.rp*0.08).toFixed(2)+
+      " to everything, forever.<br><br>Lifetime subscribers: <b>"+fmt(S.lifetimeSubs)+"</b><br>"+
+      "Sign off now for: <b style='color:#6dff9a'>"+fmt(g)+" RP</b>";
+    body.appendChild(n);
+    const b=document.createElement("button"); b.className="bigbtn"+(g>0?"":"");
+    b.textContent="SIGN OFF — BANK "+fmt(g)+" RP"; b.disabled=g<1;
+    b.onclick=()=>{ if(confirm("Sign off? You keep "+fmt(S.rp+g)+" ratings points and lose everything else."))signOff(); };
+    body.appendChild(b);
+
+    const hd2=document.createElement("div"); hd2.className="hd"; hd2.textContent="LOGBOOK";
+    body.appendChild(hd2);
+    const st=document.createElement("div"); st.className="note";
+    st.innerHTML="Banished: <b>"+S.stats.banished+"</b> &nbsp; Clean kills: <b>"+S.stats.perfect+"</b><br>"+
+      "Got through: <b style='color:#ff8b82'>"+S.stats.scared+"</b> &nbsp; Wrong keys: <b>"+S.stats.wrong+"</b><br>"+
+      "Best streak: <b>"+S.stats.bestStreak+"</b> &nbsp; Sponsors watched: <b>"+S.stats.ads+"</b><br>"+
+      "Nights: <b>"+S.night+"</b> &nbsp; Catalogued: <b>"+Object.keys(S.seen).length+"/8</b>";
+    body.appendChild(st);
+
+    const hd3=document.createElement("div"); hd3.className="hd"; hd3.textContent="TRANSMITTER SETTINGS";
+    body.appendChild(hd3);
+    const w=document.createElement("div"); w.className="note";
+    w.innerHTML='<label style="display:flex;gap:8px;align-items:center;cursor:pointer;padding:4px 0">'+
+      '<input type="checkbox" id="cbFlash"'+(S.flash?" checked":"")+'> HARSH FLASHING / RGB TEARING</label>'+
+      '<label style="display:block;padding:4px 0">VOLUME <input type="range" id="rgVol" min="0" max="1" step="0.05" value="'+S.sfx+'" style="width:100%"></label>';
+    body.appendChild(w);
+    $("#cbFlash").onchange=e=>{S.flash=e.target.checked;save();};
+    $("#rgVol").oninput=e=>{S.sfx=+e.target.value;AU.setVol(S.sfx);};
+    $("#rgVol").onchange=save;
+
+    const r=document.createElement("button"); r.className="bigbtn"; r.style.borderColor="#5a1414";
+    r.style.color="#c46b63"; r.style.background="#140606"; r.textContent="ERASE ALL TAPES (HARD RESET)";
+    r.onclick=()=>{ if(confirm("Erase everything, including ratings points?")){
+      localStorage.removeItem(SAVEKEY); location.reload(); } };
+    body.appendChild(r);
+  }
+}
+function buy(p,n){
+  AU.init();
+  const c=bulkCost(p,n);
+  if(S.sig<c){ AU.env("square",180,0.08,0.07,140); return; }
+  S.sig-=c; S.prod[p.id]=(S.prod[p.id]||0)+n; AU.buy(); renderRack(); save();
+}
+function buyUp(u){
+  AU.init();
+  if(S.sig<u.cost){ AU.env("square",180,0.08,0.07,140); return; }
+  S.sig-=u.cost; S.ups[u.id]=true; AU.buy();
+  toast("INSTALLED — "+u.nm,"good"); renderRack(); save();
+}
+$$(".tab").forEach(t=>t.onclick=()=>{
+  $$(".tab").forEach(x=>x.classList.remove("on")); t.classList.add("on");
+  S.tab=t.dataset.tab; renderRack();
+});
+
+/* --- manual --- */
+const manCanvases={};
+function renderManual(){
+  const list=$("#manList"); list.innerHTML="";
+  ANOM.forEach(a=>{
+    const seen=!!S.seen[a.id];
+    const r=document.createElement("div");
+    r.className="mrow"+(S.manPage===a.id?" on":"")+(seen?"":" unk");
+    r.innerHTML="<span>"+(seen?a.nm:"UNCATALOGUED")+"</span><span class='tag'>"+
+      (seen?COUNTERS.find(c=>c.id===a.counter).nm:"???")+"</span>";
+    r.onclick=()=>{ S.manPage=a.id; renderManual(); AU.click(); };
+    list.appendChild(r);
+  });
+  const hd=document.createElement("div"); hd.className="hd"; hd.style.padding="0 12px";
+  hd.textContent="EMERGENCY DESK"; list.appendChild(hd);
+  COUNTERS.forEach(c=>{
+    const r=document.createElement("div"); r.className="mrow"+(S.manPage==="k_"+c.id?" on":"");
+    r.innerHTML="<span>"+c.nm+"</span><span class='tag'>KEY "+c.key+"</span>";
+    r.onclick=()=>{ S.manPage="k_"+c.id; renderManual(); AU.click(); };
+    list.appendChild(r);
+  });
+
+  const page=$("#manPage");
+  if(S.manPage.startsWith("k_")){
+    const c=COUNTERS.find(x=>x.id===S.manPage.slice(2));
+    const kills=ANOM.filter(a=>a.counter===c.id&&S.seen[a.id]);
+    page.innerHTML="<h3>"+c.nm+"</h3><div class='cls'>EMERGENCY BROADCAST · KEY "+c.key+"</div>"+
+      "<div class='fld'><div class='k'>FUNCTION</div><div class='v'>"+c.ds+"</div></div>"+
+      "<div class='fld'><div class='k'>CONFIRMED EFFECTIVE AGAINST</div><div class='v'>"+
+      (kills.length?kills.map(a=>a.nm).join("<br>"):"<span style='color:#4a5456'>Nothing catalogued yet.</span>")+"</div></div>";
+    return;
+  }
+  const a=ANOM_BY[S.manPage]||ANOM[0];
+  const seen=!!S.seen[a.id];
+  if(!seen){
+    page.innerHTML="<h3>UNCATALOGUED</h3><div class='cls'>NO FIRST-HAND OBSERVATION</div>"+
+      "<div class='fld'><div class='v' style='color:#5c6e70'>This entry writes itself the first time the thing "+
+      "reaches the main monitor. Until then the page is blank, and so are you.</div></div>"+
+      "<div class='fld'><div class='k'>COUNTERMEASURE</div><span class='ctag unk'>UNKNOWN</span></div>";
+    return;
+  }
+  const c=COUNTERS.find(x=>x.id===a.counter);
+  page.innerHTML="<h3>"+a.nm+"</h3><div class='cls'>"+a.cls+"</div>"+
+    "<canvas id='manCv' width='320' height='240'></canvas>"+
+    "<div class='fld'><div class='k'>HOW IT PRESENTS</div><div class='v'>"+a.tell+"</div></div>"+
+    "<div class='fld'><div class='k'>STATION RECORD</div><div class='v'>"+a.lore+"</div></div>"+
+    "<div class='fld'><div class='k'>PROCEDURE</div><div class='v'>"+a.method+"</div></div>"+
+    "<div class='fld'><div class='k'>DO NOT</div><div class='v warn'>"+a.wrongNote+"</div></div>"+
+    "<div class='fld'><div class='k'>COUNTERMEASURE</div><span class='ctag'>"+c.nm+" &nbsp;·&nbsp; KEY "+c.key+"</span></div>";
+  manCanvases.cur=$("#manCv");
+}
+function openManual(){
+  AU.init(); AU.resume();
+  // if something is on the screen right now, that is the page you want
+  if(A.active && !(A.active.masked&&A.active.stage===0)) S.manPage=A.active.def.id;
+  renderManual(); openModal("modalManual");
+}
+$("#manualBtn").onclick=openManual;
+$$("[data-close]").forEach(e=>e.onclick=()=>closeModal(e.dataset.close));
+
+/* --- sponsor --- */
+$("#sponsorBtn").onclick=()=>{ AU.init();AU.resume(); takeSponsor(); };
+$("#adSkip").onclick=()=>endAd();
+$("#reviveBtn").onclick=()=>{ AU.init(); revive(); };
+$("#acceptBtn").onclick=()=>signOff();
+
+/* --- keyboard --- */
+addEventListener("keydown",e=>{
+  if(e.repeat)return;
+  // #boot covers the screen but doesn't block keys; without this, 1-8 and M would
+  // start the audio graph (at the default volume, not the saved one) before SIGN ON
+  if($("#boot").style.display!=="none")return;
+  const k=e.key.toLowerCase();
+  if(k==="escape"){ closeModal("modalManual"); return; }
+  if($("#modalAd").classList.contains("on")){ if(k===" "&&!$("#adSkip").disabled)endAd(); return; }
+  if(k==="m"){
+    const m=$("#modalManual");
+    if(m.classList.contains("on"))closeModal("modalManual"); else openManual();
+    return; }
+  const c=COUNTERS.find(x=>x.key===k);
+  if(c){ AU.init();AU.resume(); pressCounter(c.id);
+    const el=keyEls[c.id]; el.classList.add("down"); setTimeout(()=>el.classList.remove("down"),90); }
+});
+
+/* --- boot --- */
+$("#startBtn").onclick=()=>{
+  AU.init(); AU.resume(); AU.setVol(S.sfx);
+  $("#boot").style.display="none";
+  S.started=true; scheduleNext(); save();
+  $("#onair").classList.add("live"); $("#onair").textContent="ON AIR";
+  AU.env("sine",1000,0.5,0.12,1000);
+  toast("KBLK-7 IS ON AIR — GOOD LUCK, OPERATOR","gold");
+  setTimeout(()=>toast("BUY A TRANSMITTER FROM THE RACK →","gold"),1600);
+};
+if(S.started){ /* returning operator still confirms, for audio unlock */ }
+
+/* ============================================================================
+   9. MAIN LOOP
+   ========================================================================= */
+let lastT=performance.now(), acc=0, uiAcc=0;
+function step(now){
+  const dt=Math.min(0.1,(now-lastT)/1000); lastT=now;
+  tGlobal+=dt;
+  const running=$("#boot").style.display==="none";
+
+  if(adRun){ adTick(dt); }
+
+  if(running&&!adRun&&!A.lost){
+    // economy
+    const sr=sigRate(), ur=subRate();
+    S.sig+=sr*dt;
+    const dsub=ur*dt; S.subs+=dsub; S.lifetimeSubs+=dsub;
+    S.airtime+=dt;
+
+    // dread decay
+    const dec=(S.ups.failsafe?1.6:0.8)*dt;
+    if(!A.active)S.dread=Math.max(0,S.dread-dec);
+
+    // sponsor timers
+    if(S.sponsorEnd>0){ S.sponsorEnd-=dt; if(S.sponsorEnd<=0){S.sponsorEnd=0;toast("SPONSORSHIP ENDED","gold");} }
+    else if(S.sponsorCd>0)S.sponsorCd-=dt;
+
+    // anomaly scheduler
+    if(A.active){
+      A.active.t+=dt;
+      // dread creeps while one is live
+      S.dread=Math.min(100,S.dread+dt*(1.2+depth()*0.02));
+      const p=A.active.t/A.active.window;
+      AU.setStatic(A.active.def.id==="dead"?0.005:0.08+p*0.22);
+      if(A.active.t>=A.active.window)jumpscare();
+    } else if(A.warn>0){
+      A.warn-=dt; if(A.warn<=0)manifest();
+    } else {
+      A.nextAt-=dt;
+      if(A.nextAt<=0)beginWarn();
+    }
+    if(S.dread>=100&&!A.active&&!A.lost)signalLost();
+  }
+
+  // fx decay
+  A.shake=Math.max(0,A.shake-dt*36);
+  A.flash=Math.max(0,A.flash-dt*3.2);
+  A.banishFx=Math.max(0,A.banishFx-dt*2.4);
+  A.wrongFx=Math.max(0,A.wrongFx-dt*3);
+  if(A.scare>0){ A.scare-=dt; if(A.scare<=0){A.scare=0;A.scareDef=null;} }
+
+  renderFeed(tGlobal);
+  render(tGlobal);
+  if(manCanvases.cur&&$("#modalManual").classList.contains("on")){
+    const g=manCanvases.cur.getContext("2d");
+    g.fillStyle="#000"; g.fillRect(0,0,320,240);
+    drawAnom(g,ANOM_BY[S.manPage]||ANOM[0],tGlobal,0.7);
+    g.fillStyle="rgba(0,0,0,.25)"; for(let y=0;y<240;y+=2)g.fillRect(0,y,320,1);
+  }
+
+  uiAcc+=dt;
+  if(uiAcc>0.09){ uiAcc=0; syncUI(); }
+  acc+=dt; if(acc>12){ acc=0; save(); renderRack(); }
+
+  requestAnimationFrame(step);
+}
+function syncUI(){
+  $("#rSig").textContent=fmt(S.sig);
+  $("#rSigRate").textContent="+"+fmt(sigRate())+" /s";
+  $("#rSub").textContent=fmt(S.subs);
+  $("#rSubRate").textContent="+"+fmt(subRate())+" /s";
+  $("#rRp").textContent=fmt(S.rp);
+  $("#rMult").textContent="×"+(sigMult()).toFixed(2)+(S.sponsorEnd>0?" ◆":"");
+  $("#rClock").textContent=mmss(S.airtime);
+  $("#rNight").textContent="NIGHT "+S.night;
+  $("#dreadFill").style.width=S.dread+"%";
+  const oa=$("#onair");
+  if(A.lost){ oa.textContent="SIGNAL LOST"; oa.classList.remove("live"); }
+  else if($("#boot").style.display==="none"){ oa.textContent=A.active?"◼ INTRUSION":"ON AIR"; oa.classList.add("live"); }
+
+  const sb=$("#sponsorBtn"), ss=$("#sponsorSub");
+  if(S.sponsorEnd>0){ sb.disabled=true; sb.classList.remove("ready"); ss.textContent="ACTIVE "+Math.ceil(S.sponsorEnd)+"s"; }
+  else if(S.sponsorCd>0){ sb.disabled=true; sb.classList.remove("ready"); ss.textContent="COOL "+Math.ceil(S.sponsorCd)+"s"; }
+  else { sb.disabled=false; sb.classList.add("ready"); ss.textContent="×3 · 60s"; }
+
+  // hot keys during an intrusion
+  const a=A.active;
+  COUNTERS.forEach(c=>{ const el=keyEls[c.id];
+    el.classList.toggle("hot",!!a);
+  });
+
+  // cheap affordability refresh without full rebuild
+  if(S.tab==="tx"){
+    let stale=false;
+    PRODUCERS.forEach(p=>{
+      const el=$('#rackBody .item[data-pid="'+p.id+'"]');
+      if(!el){
+        // a tier just became reachable — full rebuild on the next pass
+        const unlocked=PRODUCERS.indexOf(p)===0||(S.prod[PRODUCERS[PRODUCERS.indexOf(p)-1].id]||0)>0||S.sig>=p.cost*0.25;
+        if(unlocked)stale=true;
+        return;
+      }
+      const n=buyMode==="max"?Math.max(1,maxAfford(p)):buyMode;
+      const c=bulkCost(p,n);
+      el.classList.toggle("afford",S.sig>=c);
+      el.querySelector(".ct").textContent=fmt(c);
+      el.querySelector(".qty").textContent=S.prod[p.id]||0;
+    });
+    if(stale)renderRack();
+  } else if(S.tab==="hw"){
+    // correlate by id, not by running index — six upgrades unlock off monotonic stat
+    // counters that change without a rebuild, which shifts every row below them
+    let stale=false;
+    UPGRADES.forEach(u=>{
+      const owned=!!S.ups[u.id], shown=owned||u.req();
+      const el=$('#rackBody .item[data-uid="'+u.id+'"]');
+      if(!el){ if(shown)stale=true; return; }
+      if(!owned)el.classList.toggle("afford",S.sig>=u.cost);
+    });
+    if(stale)renderRack();
+  }
+}
+
+/* --- offline progress --- */
+(function offline(){
+  if(!S.started||!S.ups.vault)return;
+  const away=(Date.now()-(S.lastSave||Date.now()))/1000;
+  if(away<60)return;
+  const cap=Math.min(away,4*3600);
+  const g=sigRate()*cap*0.35;
+  if(g>0){ S.sig+=g; setTimeout(()=>toast("TAPE VAULT: +"+fmt(g)+" SIG WHILE YOU WERE AWAY","gold"),1200); }
+})();
+
+/* --- fit the cabinet --- */
+function fit(){
+  const s=Math.min(innerWidth/1280,innerHeight/720);
+  // centre explicitly — see the #cab comment for why alignment properties can't do this
+  const x=(innerWidth-1280*s)/2, y=(innerHeight-720*s)/2;
+  $("#cab").style.transform="translate("+x+"px,"+y+"px) scale("+s+")";
+  // only nag when rotating actually helps: a portrait screen small enough that the
+  // landscape fit would be usable. Tablets/desktops in portrait are left alone.
+  const portrait=innerHeight>innerWidth, tight=Math.min(innerWidth,innerHeight)<560;
+  $("#rot").style.display=(portrait&&tight)?"grid":"none";
+}
+addEventListener("resize",fit); fit();
+
+// the .on class is hard-coded onto TRANSMIT in the markup; move it to the restored tab
+$$(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===S.tab));
+renderRack(); syncUI(); renderManual();
+addEventListener("beforeunload",save);
+document.addEventListener("visibilitychange",()=>{ if(document.hidden)save(); });
+
+/* rAF with a setTimeout fallback for environments where rAF is throttled off */
+let rafOk=false;
+requestAnimationFrame(t=>{ rafOk=true; lastT=t; step(t); });
+setTimeout(()=>{ if(!rafOk){ (function loop(){ step(performance.now()); setTimeout(loop,33); })(); } },400);
+</script>
